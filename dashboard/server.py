@@ -174,6 +174,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         elif path == '/api/transcript':
             video_id = qs.get('id', [None])[0]
             self.handle_api_transcript(video_id)
+        elif path.startswith('/clips/'):
+            self.handle_serve_clip(path)
         elif path == '/':
             self.path = '/index.html'
             super().do_GET()
@@ -198,6 +200,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.handle_clip_delete(data)
         elif post_path == '/api/pipeline/toggle':
             self.handle_pipeline_toggle(data)
+        elif post_path == '/api/live/reprocess':
+            self.handle_live_reprocess(data)
+        elif post_path == '/api/clip/pause':
+            self.handle_clip_pause(data)
         else:
             self.send_json(404, {'error': 'not found'})
 
@@ -216,6 +222,32 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_json(200, data)
         else:
             self.send_json(200, {'state': 'offline', 'detail': 'Scheduler nao iniciado', 'updated_at': ''})
+
+    def handle_serve_clip(self, path):
+        """Serve clip files from lives directory."""
+        # /clips/<video_id>/<filename>
+        parts = path.split('/', 3)  # ['', 'clips', 'video_id', 'filename']
+        if len(parts) < 4:
+            self.send_json(404, {'error': 'not found'})
+            return
+        video_id = parts[2]
+        filename = parts[3]
+        # Sanitize
+        if '..' in video_id or '..' in filename or '/' in filename:
+            self.send_json(400, {'error': 'invalid path'})
+            return
+        lives_dir = os.environ.get('LIVES_DIR', os.path.expanduser('~/projetos/gws/lives'))
+        filepath = os.path.join(lives_dir, video_id, 'clips', filename)
+        if not os.path.exists(filepath):
+            self.send_json(404, {'error': 'file not found'})
+            return
+        self.send_response(200)
+        self.send_header('Content-Type', 'video/mp4')
+        self.send_header('Content-Length', str(os.path.getsize(filepath)))
+        self.send_header('Content-Disposition', f'inline; filename="{filename}"')
+        self.end_headers()
+        with open(filepath, 'rb') as f:
+            self.wfile.write(f.read())
 
     def handle_api_lives(self):
         result = sheets_get('LIVES!A1:L1000')
@@ -274,7 +306,70 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 continue
             publicados.append(pub)
 
-        self.send_json(200, {'publicados': publicados, 'total': len(publicados), 'filter': filter_live_id})
+        # Enrich publicados with filename from manifest
+        lives_dir = os.environ.get('LIVES_DIR', os.path.expanduser('~/projetos/gws/lives'))
+        manifests_cache = {}
+        for pub in publicados:
+            lid = pub.get('live_video_id', '')
+            if lid and lid not in manifests_cache:
+                mp = os.path.join(lives_dir, lid, 'clips_manifest.json')
+                if os.path.exists(mp):
+                    try:
+                        with open(mp) as f:
+                            manifests_cache[lid] = {c.get('title', ''): c.get('filename', '') for c in json.load(f)}
+                    except Exception:
+                        manifests_cache[lid] = {}
+                else:
+                    manifests_cache[lid] = {}
+            pub['filename'] = manifests_cache.get(lid, {}).get(pub.get('clip_titulo', ''), '')
+
+        # Incluir clips pendentes (cortados mas nao publicados)
+        pendentes = []
+        lives_dir = os.environ.get('LIVES_DIR', os.path.expanduser('~/projetos/gws/lives'))
+        pub_titles = set(p.get('clip_titulo', '') for p in publicados)
+
+        live_ids = [filter_live_id] if filter_live_id else []
+        if not filter_live_id:
+            # Scan all lives with topics.json
+            if os.path.isdir(lives_dir):
+                for d in os.listdir(lives_dir):
+                    if os.path.exists(os.path.join(lives_dir, d, 'topics.json')):
+                        live_ids.append(d)
+
+        for lid in live_ids:
+            topics_path = os.path.join(lives_dir, lid, 'topics.json')
+            manifest_path = os.path.join(lives_dir, lid, 'clips_manifest.json')
+            if os.path.exists(topics_path):
+                try:
+                    with open(topics_path) as f:
+                        topics_data = json.load(f)
+                    # Load manifest for filenames and paused state
+                    manifest = {}
+                    if os.path.exists(manifest_path):
+                        with open(manifest_path) as f:
+                            for c in json.load(f):
+                                manifest[c.get('title', '')] = {
+                                    'filename': c.get('filename', ''),
+                                    'paused': c.get('paused', False)
+                                }
+                    for t in topics_data.get('topics', []):
+                        title = t.get('title', '')
+                        if title not in pub_titles:
+                            m = manifest.get(title, {})
+                            pendentes.append({
+                                'title': title,
+                                'description': t.get('description', ''),
+                                'tags': ', '.join(t.get('tags', [])),
+                                'start': t.get('start', ''),
+                                'end': t.get('end', ''),
+                                'live_video_id': lid,
+                                'filename': m.get('filename', ''),
+                                'paused': m.get('paused', False),
+                            })
+                except Exception:
+                    pass
+
+        self.send_json(200, {'publicados': publicados, 'pendentes': pendentes, 'total': len(publicados), 'filter': filter_live_id})
 
     def handle_api_transcript(self, video_id):
         """Return transcript for a video if available locally."""
@@ -551,6 +646,80 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             sheets_append('CONFIG!A1', [[key, new_val]])
 
         self.send_json(200, {'ok': True, 'target': target, 'paused': new_val == 'true'})
+
+    def handle_live_reprocess(self, data):
+        """Reset status_cortes (and optionally status_transcricao) to allow reprocessing."""
+        video_id = data.get('video_id', '')
+        if not video_id:
+            self.send_json(400, {'error': 'video_id required'})
+            return
+
+        result = sheets_get('LIVES!A1:L1000')
+        rows = result.get('values', [])
+        if len(rows) < 2:
+            self.send_json(404, {'error': 'no lives found'})
+            return
+
+        headers = rows[0]
+        cortes_col = headers.index('status_cortes') if 'status_cortes' in headers else -1
+        trans_col = headers.index('status_transcricao') if 'status_transcricao' in headers else -1
+        vid_col = headers.index('video_id') if 'video_id' in headers else 0
+
+        found = False
+        for i, row in enumerate(rows[1:], 1):
+            vid = row[vid_col] if vid_col < len(row) else ''
+            if vid == video_id:
+                while len(row) <= max(cortes_col, trans_col):
+                    row.append('')
+                if cortes_col >= 0:
+                    row[cortes_col] = 'pendente'
+                if trans_col >= 0:
+                    row[trans_col] = 'pendente'
+                sheets_update(f'LIVES!A{i+1}:L{i+1}', [row])
+                # Clean local files to force re-download
+                import shutil
+                job_dir = os.path.join(os.path.dirname(__file__), '..', 'lives', video_id)
+                if os.path.exists(job_dir):
+                    shutil.rmtree(job_dir)
+                found = True
+                break
+
+        if found:
+            self.send_json(200, {'ok': True, 'video_id': video_id})
+        else:
+            self.send_json(404, {'error': f'video_id {video_id} not found'})
+
+    def handle_clip_pause(self, data):
+        """Toggle paused status of a clip in clips_manifest.json."""
+        live_id = data.get('live_video_id', '')
+        title = data.get('title', '')
+        if not live_id or not title:
+            self.send_json(400, {'error': 'live_video_id and title required'})
+            return
+
+        lives_dir = os.environ.get('LIVES_DIR', os.path.expanduser('~/projetos/gws/lives'))
+        manifest_path = os.path.join(lives_dir, live_id, 'clips_manifest.json')
+        if not os.path.exists(manifest_path):
+            self.send_json(404, {'error': 'manifest not found'})
+            return
+
+        with open(manifest_path) as f:
+            clips = json.load(f)
+
+        found = False
+        for clip in clips:
+            if clip.get('title', '') == title:
+                clip['paused'] = not clip.get('paused', False)
+                found = True
+                new_state = clip['paused']
+                break
+
+        if found:
+            with open(manifest_path, 'w') as f:
+                json.dump(clips, f, ensure_ascii=False, indent=2)
+            self.send_json(200, {'ok': True, 'paused': new_state})
+        else:
+            self.send_json(404, {'error': 'clip not found in manifest'})
 
 
 def parse_duration_minutes(iso_duration):

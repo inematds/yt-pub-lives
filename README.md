@@ -27,6 +27,7 @@ yt-pub-lives/
 │   ├── yt-publish         # Upload de video para YouTube
 │   ├── yt-thumbnail       # Gera thumbnails com IA (LLM + imagem)
 │   └── yt-dashboard       # Lanca o dashboard web
+├── scheduler.py           # Scheduler automatico (cortes + publicacao + thumbnails)
 ├── requirements.txt       # Dependencias Python
 ├── .env.example           # Template de variaveis de ambiente
 ├── setup.sh               # Script de instalacao
@@ -38,7 +39,9 @@ yt-pub-lives/
 - Python 3.10+
 - ffmpeg
 - yt-dlp
+- deno (runtime JS para yt-dlp)
 - curl
+- Pillow (thumbnails)
 
 ## Instalacao
 
@@ -106,15 +109,19 @@ yt-dashboard [porta]    # padrao: 8090
 ```
 
 Acesse `http://localhost:8090` — painel com:
-- Stats (total lives, cortadas, pendentes, publicados)
+- Stats clicaveis (total lives, cortadas, pendentes, clips aguardando, publicados)
 - Configuracao de horarios (picker visual 24h)
-- Tabela de lives com filtro, pesquisa e ordenacao
-- Tabela de clips publicados com filtro por privacy
-- Modais para ver transcricao e clips de cada live
+- Tabela de lives com filtro por status (pendentes, cortadas, aguardando publicacao, publicadas, com erro)
+- Aba Clips unificada: publicados + pendentes, com filtro por status (publicado/pendente/parado)
+- Controle de clips: pausar/retomar publicacao de clips individuais
+- Link direto para arquivo local do clip (▶)
+- Navegacao entre abas: clicar na live do clip vai para Lives, clicar nos clips da live vai para Clips
+- Reprocessar lives com erro (botao ↻)
 - Controle de privacy (clique para alternar)
 - Exclusao de clips (YouTube + planilha)
-- Botoes para pausar/retomar cortes e publicacao
+- Botoes para pausar/retomar pipelines de cortes e publicacao
 - Configuracao de thumbnails (modo, API key, modelo de imagem)
+- Status do scheduler em tempo real com etapa atual (transcricao, analise, corte, publicacao, thumbnail)
 
 ### Cortar uma Live
 

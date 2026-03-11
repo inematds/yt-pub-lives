@@ -589,19 +589,23 @@
 
   <!-- Stats -->
   <div class="stats" id="stats">
-    <div class="stat-card">
+    <div class="stat-card" onclick="filterByStatus('')" style="cursor:pointer" title="Ver todas">
       <div class="label">Total Lives</div>
       <div class="value blue" id="statLives">-</div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card" onclick="filterByStatus('concluido')" style="cursor:pointer" title="Ver cortadas">
       <div class="label">Lives Cortadas</div>
       <div class="value green" id="statCortadas">-</div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card" onclick="filterByStatus('pendente')" style="cursor:pointer" title="Ver pendentes">
       <div class="label">Pendentes</div>
       <div class="value yellow" id="statPendentes">-</div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card" onclick="filterByStatus('aguardando_pub')" style="cursor:pointer" title="Ver clips aguardando publicacao">
+      <div class="label">Clips Aguardando</div>
+      <div class="value yellow" id="statAguardando">-</div>
+    </div>
+    <div class="stat-card" onclick="filterByStatus('publicado')" style="cursor:pointer" title="Ver totalmente publicadas">
       <div class="label">Clips Publicados</div>
       <div class="value green" id="statPublicados">-</div>
     </div>
@@ -718,7 +722,7 @@
   <!-- Tabs -->
   <div class="tabs" id="tabsBar">
     <button class="tab active" data-tab="lives" onclick="showTab('lives', this)">Lives</button>
-    <button class="tab" data-tab="publicados" onclick="showTab('publicados', this)">Clips Publicados</button>
+    <button class="tab" data-tab="publicados" onclick="showTab('publicados', this)">Clips</button>
   </div>
 
   <!-- Lives Toolbar + Table -->
@@ -728,8 +732,11 @@
       <span class="toolbar-label">Situacao:</span>
       <select id="livesStatus" onchange="filterLives()">
         <option value="">Todas</option>
-        <option value="pendente">Pendentes</option>
-        <option value="concluido">Concluidas</option>
+        <option value="pendente">Pendentes (sem corte)</option>
+        <option value="concluido">Cortadas</option>
+        <option value="aguardando_pub">Aguardando publicacao</option>
+        <option value="publicado">Totalmente publicadas</option>
+        <option value="erro">Com erro</option>
       </select>
       <span class="toolbar-label">Ordem:</span>
       <select id="livesOrder" onchange="filterLives()">
@@ -749,8 +756,8 @@
             <th>Titulo</th>
             <th>Data</th>
             <th>Duracao</th>
-            <th>Transcricao</th>
             <th>Cortes</th>
+            <th>Transcricao</th>
             <th>Clips</th>
             <th>Publicados</th>
           </tr>
@@ -766,6 +773,13 @@
   <div id="tabPublicados" style="display:none">
     <div class="toolbar">
       <input type="text" id="pubSearch" placeholder="Pesquisar por titulo ou tags..." oninput="filterPubs()">
+      <span class="toolbar-label">Status:</span>
+      <select id="pubStatus" onchange="filterPubs()">
+        <option value="">Todos</option>
+        <option value="publicado">Publicados</option>
+        <option value="pendente">Pendentes</option>
+        <option value="parado">Parados</option>
+      </select>
       <span class="toolbar-label">Privacy:</span>
       <select id="pubPrivacy" onchange="filterPubs()">
         <option value="">Todas</option>
@@ -790,12 +804,12 @@
       <table>
         <thead>
           <tr>
-            <th>Clip</th>
+            <th>Status</th>
             <th>Titulo</th>
-            <th>Live Origem</th>
-            <th>Data Pub.</th>
+            <th>Live</th>
+            <th>Data / Tempo</th>
             <th>Privacy</th>
-            <th>Duracao</th>
+            <th>Arquivo</th>
             <th>Tags</th>
           </tr>
       </thead>
@@ -854,7 +868,7 @@ function showToast(msg, type = 'success') {
 }
 
 function badge(status, opts = {}) {
-  const cls = status === 'concluido' ? 'concluido' : status === 'erro' ? 'erro' : 'pendente';
+  const cls = status === 'concluido' ? 'concluido' : status === 'erro' ? 'erro' : status === 'transcricao' ? 'concluido' : 'pendente';
   const clickable = opts.clickable ? ' clickable' : '';
   const onclick = opts.onclick ? ` onclick="${opts.onclick}"` : '';
   const title = opts.title ? ` title="${opts.title}"` : '';
@@ -1038,6 +1052,53 @@ async function loadStats() {
   document.getElementById('statCortadas').textContent = data.lives_cortadas;
   document.getElementById('statPendentes').textContent = data.lives_pendentes;
   document.getElementById('statPublicados').textContent = data.total_publicados;
+
+  // Calcular clips aguardando publicacao
+  let aguardando = 0;
+  if (allLives && allLives.length) {
+    allLives.forEach(l => {
+      if (l.status_cortes === 'concluido') {
+        const qtd = parseInt(l.qtd_clips) || 0;
+        const pub = parseInt(l.clips_publicados) || 0;
+        if (qtd > pub) aguardando += (qtd - pub);
+      }
+    });
+  }
+  document.getElementById('statAguardando').textContent = aguardando;
+}
+
+async function toggleClipPaused(liveId, title) {
+  try {
+    const resp = await fetch('/api/clip/pause', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({live_video_id: liveId, title: title})
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      showToast(data.paused ? 'Clip parado' : 'Clip retomado');
+      loadPublicados(currentPubFilter);
+    }
+  } catch (e) {
+    showToast('Erro: ' + e.message);
+  }
+}
+
+function goToLive(videoId) {
+  showTab('lives');
+  document.getElementById('livesSearch').value = videoId;
+  filterLives();
+}
+
+function goToClips(videoId) {
+  showTab('publicados');
+  loadPublicados(videoId);
+}
+
+function filterByStatus(status) {
+  showTab('lives');
+  document.getElementById('livesStatus').value = status;
+  filterLives();
 }
 
 async function loadLives() {
@@ -1053,9 +1114,14 @@ function filterLives() {
   const tbody = document.getElementById('livesBody');
 
   let filtered = allLives.filter(l => {
-    if (search && !l.titulo.toLowerCase().includes(search)) return false;
-    if (status === 'pendente' && l.status_cortes === 'concluido') return false;
+    if (search && !l.titulo.toLowerCase().includes(search) && !(l.video_id || '').toLowerCase().includes(search)) return false;
+    const qtd = parseInt(l.qtd_clips) || 0;
+    const pub = parseInt(l.clips_publicados) || 0;
+    if (status === 'pendente' && (l.status_cortes === 'concluido' || l.status_cortes === 'erro')) return false;
     if (status === 'concluido' && l.status_cortes !== 'concluido') return false;
+    if (status === 'aguardando_pub' && !(l.status_cortes === 'concluido' && qtd > 0 && pub < qtd)) return false;
+    if (status === 'publicado' && !(l.status_cortes === 'concluido' && qtd > 0 && pub >= qtd)) return false;
+    if (status === 'erro' && l.status_cortes !== 'erro') return false;
     return true;
   });
 
@@ -1089,6 +1155,9 @@ function filterLives() {
       onclick: `openClips('${l.video_id}','${escapeHtml(l.titulo).replace(/'/g,"\\'")}')`,
       title: 'Clique para ver os clips'
     });
+    const reprocessBtn = l.status_cortes === 'erro'
+      ? ` <span class="badge pendente clickable" onclick="reprocessLive('${l.video_id}')" title="Reprocessar este video">↻</span>`
+      : '';
 
     return `
     <tr>
@@ -1096,18 +1165,41 @@ function filterLives() {
       <td title="${escapeHtml(l.titulo)}">${escapeHtml(l.titulo)}</td>
       <td>${l.data_live}</td>
       <td>${l.duracao_min ? l.duracao_min + ' min' : '-'}</td>
+      <td>${cortesBadge}${reprocessBtn}</td>
       <td>${transcBadge}</td>
-      <td>${cortesBadge}</td>
-      <td>${l.qtd_clips || '0'}</td>
-      <td>${l.clips_publicados || '0'} / ${l.qtd_clips || '0'}${l.data_publicacao ? '<br><span style="font-size:0.7rem;color:var(--muted)">' + l.data_publicacao + '</span>' : ''}</td>
+      <td style="cursor:pointer" onclick="goToClips('${l.video_id}')">${l.qtd_clips || '0'}</td>
+      <td style="cursor:pointer" onclick="goToClips('${l.video_id}')">${l.clips_publicados || '0'}</td>
     </tr>`;
   }).join('');
 }
+
+async function reprocessLive(videoId) {
+  if (!confirm(`Reprocessar video ${videoId}? Isso vai apagar os arquivos locais e refazer transcricao + cortes.`)) return;
+  try {
+    const resp = await fetch('/api/live/reprocess', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({video_id: videoId})
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      showToast(`Video ${videoId} marcado para reprocessamento`);
+      loadLives();
+    } else {
+      showToast('Erro: ' + (data.error || 'desconhecido'));
+    }
+  } catch (e) {
+    showToast('Erro ao reprocessar: ' + e.message);
+  }
+}
+
+let allPendentes = [];
 
 async function loadPublicados(filterLiveId) {
   const url = filterLiveId ? '/api/publicados?live=' + filterLiveId : '/api/publicados';
   const data = await fetchJson(url);
   allPublicados = data.publicados || [];
+  allPendentes = data.pendentes || [];
   currentPubFilter = filterLiveId || null;
 
   const filterBar = document.getElementById('pubFilter');
@@ -1123,50 +1215,90 @@ async function loadPublicados(filterLiveId) {
 
 function filterPubs() {
   const search = (document.getElementById('pubSearch').value || '').toLowerCase();
+  const statusFilter = document.getElementById('pubStatus').value;
   const privacy = document.getElementById('pubPrivacy').value;
   const order = document.getElementById('pubOrder').value;
   const tbody = document.getElementById('pubBody');
 
-  let filtered = allPublicados.filter(p => {
+  // Unificar publicados e pendentes numa lista so
+  let all = [];
+
+  if (statusFilter !== 'pendente' && statusFilter !== 'parado') {
+    allPublicados.forEach(p => {
+      all.push({...p, _status: 'publicado', _title: p.clip_titulo, _tags: p.tags || ''});
+    });
+  }
+
+  if (statusFilter !== 'publicado') {
+    allPendentes.forEach(p => {
+      const st = p.paused ? 'parado' : 'pendente';
+      if (statusFilter && statusFilter !== st) return;
+      all.push({...p, _status: st, _title: p.title, _tags: p.tags || ''});
+    });
+  }
+
+  let filtered = all.filter(p => {
     if (search) {
-      const haystack = (p.clip_titulo + ' ' + (p.tags || '')).toLowerCase();
+      const haystack = (p._title + ' ' + p._tags).toLowerCase();
       if (!haystack.includes(search)) return false;
     }
-    if (privacy && p.privacy !== privacy) return false;
+    if (privacy && p._status === 'publicado' && p.privacy !== privacy) return false;
     return true;
   });
 
+  // Sort (pendentes ficam por ultimo se misturado)
   filtered.sort((a, b) => {
+    if (a._status !== b._status) return a._status === 'publicado' ? -1 : 1;
     switch (order) {
       case 'newest': return (b.data_publicacao || '').localeCompare(a.data_publicacao || '');
       case 'oldest': return (a.data_publicacao || '').localeCompare(b.data_publicacao || '');
-      case 'title': return (a.clip_titulo || '').localeCompare(b.clip_titulo || '');
+      case 'title': return (a._title || '').localeCompare(b._title || '');
       case 'duration-desc': return (parseInt(b.duracao_seg)||0) - (parseInt(a.duracao_seg)||0);
       default: return 0;
     }
   });
 
-  document.getElementById('pubCount').textContent = filtered.length + ' / ' + allPublicados.length;
+  const totalAll = allPublicados.length + allPendentes.length;
+  document.getElementById('pubCount').textContent = filtered.length + ' / ' + totalAll;
 
   if (filtered.length === 0) {
     tbody.innerHTML = '<tr><td colspan="7" class="empty">Nenhum clip encontrado.</td></tr>';
     return;
   }
 
-  tbody.innerHTML = filtered.map(p => `
-    <tr>
-      <td><a href="${p.clip_url}" target="_blank">${p.clip_video_id}</a></td>
-      <td title="${escapeHtml(p.clip_titulo)}">${escapeHtml(p.clip_titulo)}</td>
-      <td><a href="https://www.youtube.com/watch?v=${p.live_video_id}" target="_blank">${escapeHtml(p.live_titulo || p.live_video_id)}</a></td>
-      <td>${p.data_publicacao}</td>
-      <td><span class="privacy-toggle" onclick="cyclePrivacy(this, '${p.clip_video_id}')" title="Clique para mudar">${p.privacy}</span></td>
-      <td>${p.duracao_seg ? Math.round(p.duracao_seg/60) + ' min' : '-'}</td>
-      <td>
-        ${p.tags || '-'}
-        <button class="small btn-delete" onclick="deleteClip('${p.clip_video_id}', '${escapeHtml(p.clip_titulo).replace(/'/g,"\\'")}', this)" title="Excluir clip">x</button>
-      </td>
-    </tr>
-  `).join('');
+  tbody.innerHTML = filtered.map(p => {
+    const fileLink = p.filename && p.live_video_id
+      ? `<a href="/clips/${p.live_video_id}/${encodeURIComponent(p.filename)}" target="_blank" title="${p.filename}">▶</a>`
+      : '-';
+
+    if (p._status === 'publicado') {
+      return `<tr>
+        <td><a href="${p.clip_url}" target="_blank"><span class="badge concluido">publicado</span></a></td>
+        <td title="${escapeHtml(p.clip_titulo)}">${escapeHtml(p.clip_titulo)}</td>
+        <td><a href="javascript:void(0)" onclick="goToLive('${p.live_video_id}')">${p.live_video_id}</a></td>
+        <td>${p.data_publicacao}</td>
+        <td><span class="privacy-toggle" onclick="cyclePrivacy(this, '${p.clip_video_id}')" title="Clique para mudar">${p.privacy}</span></td>
+        <td>${fileLink}</td>
+        <td>
+          ${p.tags || '-'}
+          <button class="small btn-delete" onclick="deleteClip('${p.clip_video_id}', '${escapeHtml(p.clip_titulo).replace(/'/g,"\\'")}', this)" title="Excluir clip">x</button>
+        </td>
+      </tr>`;
+    } else {
+      const isPaused = p._status === 'parado';
+      const badgeCls = isPaused ? 'erro' : 'pendente';
+      const badgeText = isPaused ? 'parado' : 'pendente';
+      return `<tr style="opacity:${isPaused ? '0.5' : '0.7'}">
+        <td><span class="badge ${badgeCls} clickable" onclick="toggleClipPaused('${p.live_video_id}', '${escapeHtml(p.title).replace(/'/g,"\\'")}')" title="Clique para ${isPaused ? 'retomar' : 'parar'}">${badgeText}</span></td>
+        <td title="${escapeHtml(p.title)}">${escapeHtml(p.title)}</td>
+        <td><a href="javascript:void(0)" onclick="goToLive('${p.live_video_id}')">${p.live_video_id}</a></td>
+        <td>${p.start} → ${p.end}</td>
+        <td>-</td>
+        <td>${fileLink}</td>
+        <td>${p._tags || '-'}</td>
+      </tr>`;
+    }
+  }).join('');
 }
 
 async function loadConfig() {
@@ -1317,11 +1449,22 @@ async function loadSchedulerStatus() {
 
     dot.className = 'scheduler-dot ' + (data.state || 'offline');
 
+    const stepIcons = {
+      transcricao: '📥',
+      analise_transcript: '📝',
+      analise: '🤖',
+      corte: '✂️',
+      thumbnail: '🖼️',
+      upload: '📤',
+      publicacao: '📤'
+    };
+    const stepIcon = data.step && stepIcons[data.step] ? stepIcons[data.step] + ' ' : '';
+
     const labels = {
       idle: 'Aguardando proximo horario',
-      cortando: data.detail || 'Cortando...',
-      publicando: data.detail || 'Publicando...',
-      erro: data.detail || 'Erro',
+      cortando: stepIcon + (data.detail || 'Cortando...'),
+      publicando: stepIcon + (data.detail || 'Publicando...'),
+      erro: '⚠️ ' + (data.detail || 'Erro'),
       offline: 'Scheduler nao iniciado'
     };
     detail.textContent = labels[data.state] || data.detail || data.state;
@@ -1333,11 +1476,12 @@ async function loadSchedulerStatus() {
 }
 
 async function loadAll() {
-  await Promise.all([loadStats(), loadLives(), loadPublicados(), loadConfig(), loadSchedulerStatus()]);
+  await Promise.all([loadLives(), loadPublicados(), loadConfig(), loadSchedulerStatus()]);
+  await loadStats();
 }
 
-// Atualiza status do scheduler a cada 10s
-setInterval(loadSchedulerStatus, 10000);
+// Atualiza status do scheduler a cada 5s
+setInterval(loadSchedulerStatus, 5000);
 
 // --- Privacy cycle & Delete ---
 const privacyOrder = ['unlisted', 'public', 'private'];

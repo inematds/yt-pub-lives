@@ -39,12 +39,13 @@ def log(msg):
     print(f'[{ts}] {msg}', flush=True)
 
 
-def update_status(state, detail='', video_id=''):
+def update_status(state, detail='', video_id='', step=''):
     """Escreve status atual do scheduler em JSON para o dashboard ler."""
     data = {
         'state': state,        # idle | cortando | publicando | erro
         'detail': detail,
         'video_id': video_id,
+        'step': step,          # etapa atual: transcricao | analise | download | corte | thumbnail | upload
         'updated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     }
     try:
@@ -144,26 +145,50 @@ def is_hour_now(horarios_str):
 
 
 def run_corte(video_id):
-    """Executa yt-clip para uma live."""
+    """Executa yt-clip para uma live, atualizando status por etapa."""
     log(f'  Executando corte: {video_id}')
-    update_status('cortando', f'Cortando live {video_id}', video_id)
+    update_status('cortando', f'Baixando transcricao...', video_id, step='transcricao')
     script = os.path.join(SCRIPTS_DIR, 'yt-clip')
     env = os.environ.copy()
     env['LIVES_DIR'] = LIVES_DIR
-    env['PATH'] = f"/usr/bin:{os.path.expanduser('~/.local/bin')}:{SCRIPTS_DIR}:{env.get('PATH', '')}"
+    env['PATH'] = f"{os.path.expanduser('~/.deno/bin')}:/usr/bin:{os.path.expanduser('~/.local/bin')}:{SCRIPTS_DIR}:{env.get('PATH', '')}"
 
-    result = subprocess.run(
+    proc = subprocess.Popen(
         [script, video_id, '--ai', 'claude-api'],
-        capture_output=True, text=True, timeout=1800,  # 30 min max
-        env=env
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, env=env
     )
 
-    if result.returncode == 0:
+    output_lines = []
+    step_map = {
+        '[1/5]': ('transcricao', 'Baixando transcricao...'),
+        '[2/5]': ('analise_transcript', 'Processando transcricao...'),
+        '[3/5]': ('analise', 'Analisando topicos com IA...'),
+        '[4/5]': ('corte', 'Baixando video e cortando clips...'),
+        '[5/5]': ('publicacao', 'Finalizando...'),
+    }
+
+    for line in proc.stdout:
+        line = line.rstrip()
+        if not line:
+            continue
+        output_lines.append(line)
+        log(f'    | {line}')
+        # Detecta etapa pelo marcador [N/5]
+        for marker, (step, label) in step_map.items():
+            if marker in line:
+                update_status('cortando', label, video_id, step=step)
+                break
+
+    proc.wait()
+
+    if proc.returncode == 0:
         log(f'  Corte concluido: {video_id}')
         update_status('idle', f'Corte concluido: {video_id}', video_id)
         return True
     else:
-        log(f'  Erro no corte: {result.stderr[-500:] if result.stderr else "sem output"}')
+        last_output = '\n'.join(output_lines[-5:]) if output_lines else 'sem output'
+        log(f'  Erro no corte: {last_output}')
         update_status('erro', f'Erro no corte: {video_id}', video_id)
         return False
 
@@ -171,26 +196,38 @@ def run_corte(video_id):
 def run_publicacao(video_id, clip_file, title, description, tags, privacy):
     """Executa yt-publish para um clip."""
     log(f'  Publicando: {title[:60]}')
-    update_status('publicando', f'Publicando: {title[:50]}', video_id)
+    update_status('publicando', f'Publicando: {title[:50]}', video_id, step='upload')
     script = os.path.join(SCRIPTS_DIR, 'yt-publish')
     env = os.environ.copy()
-    env['PATH'] = f"/usr/bin:{os.path.expanduser('~/.local/bin')}:{SCRIPTS_DIR}:{env.get('PATH', '')}"
+    env['PATH'] = f"{os.path.expanduser('~/.deno/bin')}:/usr/bin:{os.path.expanduser('~/.local/bin')}:{SCRIPTS_DIR}:{env.get('PATH', '')}"
 
     cmd = [script, clip_file, '--title', title, '--description', description, '--privacy', privacy]
     if tags:
         cmd += ['--tags', tags]
 
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800, env=env)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
 
-    if result.returncode == 0:
-        # Extract video ID from output
-        for line in (result.stdout + result.stderr).split('\n'):
-            if 'Video ID:' in line:
-                return line.split('Video ID:')[1].strip()
+    output_lines = []
+    video_id_result = None
+    for line in proc.stdout:
+        line = line.rstrip()
+        if not line:
+            continue
+        output_lines.append(line)
+        log(f'    | {line}')
+        if 'Video ID:' in line:
+            video_id_result = line.split('Video ID:')[1].strip()
+
+    proc.wait()
+
+    if proc.returncode == 0:
+        if video_id_result:
+            return video_id_result
         log(f'  Publicado mas sem video ID no output')
         return 'unknown'
     else:
-        log(f'  Erro na publicacao: {result.stderr[-500:] if result.stderr else "sem output"}')
+        last_output = '\n'.join(output_lines[-5:]) if output_lines else 'sem output'
+        log(f'  Erro na publicacao: {last_output}')
         return None
 
 
@@ -326,7 +363,7 @@ def process_cortes(config):
     lives, all_rows = get_pending_lives()
     headers = all_rows[0] if all_rows else []
 
-    pendentes = [l for l in lives if l.get('status_cortes') != 'concluido']
+    pendentes = [l for l in lives if l.get('status_cortes') not in ('concluido', 'erro')]
     if not pendentes:
         log('  Nenhuma live pendente para cortar')
         return
@@ -357,7 +394,7 @@ def process_cortes(config):
 
             has_clips = os.path.isdir(clips_dir) and len(os.listdir(clips_dir)) > 0
 
-            update_live_status(row_num, headers, list(orig_row), 'status_transcricao', 'concluido', {
+            update_live_status(row_num, headers, list(orig_row), 'status_transcricao', 'transcricao', {
                 'status_cortes': 'concluido' if has_clips else 'pendente',
                 'qtd_clips': qtd_clips
             })
@@ -414,6 +451,9 @@ def process_publicacao(config):
             if clip['title'] in published_titles:
                 continue
 
+            if clip.get('paused', False):
+                continue
+
             if not os.path.exists(clip['file']):
                 log(f'  Arquivo nao encontrado: {clip["file"]}')
                 continue
@@ -426,6 +466,7 @@ def process_publicacao(config):
 
             if new_vid:
                 # Generate and upload thumbnail
+                update_status('publicando', 'Gerando thumbnail...', new_vid, step='thumbnail')
                 handle_thumbnail(
                     new_vid, clip['title'],
                     clip.get('description', ''), config
