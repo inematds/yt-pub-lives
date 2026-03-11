@@ -224,6 +224,161 @@ else:
     exit(1)
 PYEOF
 
+elif [[ "$AI_MODE" == "anthropic-api" ]]; then
+  # --- Modo: Anthropic API Key (usa ANTHROPIC_API_KEY diretamente) ---
+  echo "    Usando Anthropic API..."
+
+  if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
+    echo "Erro: ANTHROPIC_API_KEY não definida" >&2
+    exit 1
+  fi
+
+  # Monta prompt completo em arquivo
+  cat > "$JOB_DIR/prompt.txt" << PROMPTEOF
+$PROMPT_TEMPLATE
+
+$(cat "$JOB_DIR/condensed.txt")
+PROMPTEOF
+
+  # Chama Anthropic API via curl
+  python3 << PYEOF
+import json, urllib.request, os, re
+
+api_key = os.environ['ANTHROPIC_API_KEY']
+
+with open('$JOB_DIR/prompt.txt') as f:
+    prompt_text = f.read()
+
+payload = {
+    'model': 'claude-sonnet-4-20250514',
+    'max_tokens': 4096,
+    'messages': [{'role': 'user', 'content': prompt_text}]
+}
+
+body = json.dumps(payload).encode()
+req = urllib.request.Request('https://api.anthropic.com/v1/messages', data=body)
+req.add_header('Content-Type', 'application/json')
+req.add_header('x-api-key', api_key)
+req.add_header('anthropic-version', '2023-06-01')
+
+resp = urllib.request.urlopen(req, timeout=120)
+result = json.loads(resp.read())
+response_text = result['content'][0]['text']
+
+json_match = re.search(r'\{[\s\S]*\}', response_text)
+if json_match:
+    topics_data = json.loads(json_match.group())
+    with open('$JOB_DIR/topics.json', 'w') as f:
+        json.dump(topics_data, f, ensure_ascii=False, indent=2)
+    print(f"    Encontrados {len(topics_data.get('topics',[]))} tópicos")
+else:
+    print("Erro: Claude não retornou JSON válido")
+    print(response_text[:500])
+    exit(1)
+PYEOF
+
+elif [[ "$AI_MODE" == "openrouter-api" ]]; then
+  # --- Modo: OpenRouter API ---
+  echo "    Usando OpenRouter API..."
+
+  if [[ -z "${OPENROUTER_API_KEY:-}" ]]; then
+    echo "Erro: OPENROUTER_API_KEY não definida" >&2
+    exit 1
+  fi
+
+  cat > "$JOB_DIR/prompt.txt" << PROMPTEOF
+$PROMPT_TEMPLATE
+
+$(cat "$JOB_DIR/condensed.txt")
+PROMPTEOF
+
+  python3 << PYEOF
+import json, urllib.request, os, re
+
+api_key = os.environ['OPENROUTER_API_KEY']
+model = os.environ.get('AI_MODEL', 'anthropic/claude-sonnet-4')
+
+with open('$JOB_DIR/prompt.txt') as f:
+    prompt_text = f.read()
+
+payload = {
+    'model': model,
+    'messages': [{'role': 'user', 'content': prompt_text}],
+    'max_tokens': 4096
+}
+
+body = json.dumps(payload).encode()
+req = urllib.request.Request('https://openrouter.ai/api/v1/chat/completions', data=body)
+req.add_header('Content-Type', 'application/json')
+req.add_header('Authorization', f'Bearer {api_key}')
+
+resp = urllib.request.urlopen(req, timeout=120)
+result = json.loads(resp.read())
+response_text = result['choices'][0]['message']['content']
+
+json_match = re.search(r'\{[\s\S]*\}', response_text)
+if json_match:
+    topics_data = json.loads(json_match.group())
+    with open('$JOB_DIR/topics.json', 'w') as f:
+        json.dump(topics_data, f, ensure_ascii=False, indent=2)
+    print(f"    Encontrados {len(topics_data.get('topics',[]))} tópicos")
+else:
+    print("Erro: não retornou JSON válido")
+    print(response_text[:500])
+    exit(1)
+PYEOF
+
+elif [[ "$AI_MODE" == "piramyd-api" ]]; then
+  # --- Modo: Piramyd API ---
+  echo "    Usando Piramyd API..."
+
+  if [[ -z "${PIRAMYD_API_KEY:-}" ]]; then
+    echo "Erro: PIRAMYD_API_KEY não definida" >&2
+    exit 1
+  fi
+
+  cat > "$JOB_DIR/prompt.txt" << PROMPTEOF
+$PROMPT_TEMPLATE
+
+$(cat "$JOB_DIR/condensed.txt")
+PROMPTEOF
+
+  python3 << PYEOF
+import json, urllib.request, os, re
+
+api_key = os.environ['PIRAMYD_API_KEY']
+model = os.environ.get('AI_MODEL', 'claude-sonnet-4.5')
+
+with open('$JOB_DIR/prompt.txt') as f:
+    prompt_text = f.read()
+
+payload = {
+    'model': model,
+    'messages': [{'role': 'user', 'content': prompt_text}],
+    'max_tokens': 4096
+}
+
+body = json.dumps(payload).encode()
+req = urllib.request.Request('https://api.piramyd.cloud/v1/chat/completions', data=body)
+req.add_header('Content-Type', 'application/json')
+req.add_header('Authorization', f'Bearer {api_key}')
+
+resp = urllib.request.urlopen(req, timeout=120)
+result = json.loads(resp.read())
+response_text = result['choices'][0]['message']['content']
+
+json_match = re.search(r'\{[\s\S]*\}', response_text)
+if json_match:
+    topics_data = json.loads(json_match.group())
+    with open('$JOB_DIR/topics.json', 'w') as f:
+        json.dump(topics_data, f, ensure_ascii=False, indent=2)
+    print(f"    Encontrados {len(topics_data.get('topics',[]))} tópicos")
+else:
+    print("Erro: não retornou JSON válido")
+    print(response_text[:500])
+    exit(1)
+PYEOF
+
 elif [[ "$AI_MODE" == "manual" ]]; then
   # --- Modo: Manual (gera prompt para sessão interativa) ---
   # Salva o prompt completo para ser usado pelo Claude Code ou colado manualmente

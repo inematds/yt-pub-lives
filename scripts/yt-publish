@@ -209,6 +209,8 @@ RESPONSE=$(curl -s -X PUT \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: video/*" \
   -H "Content-Length: $FILE_SIZE" \
+  --connect-timeout 30 \
+  --max-time 600 \
   --data-binary "@$FILE_PATH" \
   "$UPLOAD_URL")
 

@@ -36,7 +36,7 @@ if os.path.exists(ENV_FILE):
 
 def log(msg):
     ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    print(f'[{ts}] {msg}', flush=True)
+    print(f'[{ts}] {msg}', file=sys.stderr, flush=True)
 
 
 def update_status(state, detail='', video_id='', step=''):
@@ -136,15 +136,23 @@ def get_pending_lives():
     return lives, rows
 
 
-def is_hour_now(horarios_str):
-    """Checa se a hora atual esta na lista de horarios (ex: '06:00,12:00,18:00')."""
+def get_matching_schedule(horarios_str):
+    """Retorna o horario agendado que bate com agora, ou None.
+    Suporta HH:00 (hora cheia) e HH:MM (minuto exato)."""
     if not horarios_str:
-        return False
+        return None
+    now_hm = datetime.now().strftime('%H:%M')
     now_hour = datetime.now().strftime('%H:00')
-    return now_hour in [h.strip() for h in horarios_str.split(',')]
+    for h in horarios_str.split(','):
+        h = h.strip()
+        if h == now_hm:
+            return h
+        if h == now_hour:
+            return h
+    return None
 
 
-def run_corte(video_id):
+def run_corte(video_id, config=None):
     """Executa yt-clip para uma live, atualizando status por etapa."""
     log(f'  Executando corte: {video_id}')
     update_status('cortando', f'Baixando transcricao...', video_id, step='transcricao')
@@ -153,8 +161,28 @@ def run_corte(video_id):
     env['LIVES_DIR'] = LIVES_DIR
     env['PATH'] = f"{os.path.expanduser('~/.deno/bin')}:/usr/bin:{os.path.expanduser('~/.local/bin')}:{SCRIPTS_DIR}:{env.get('PATH', '')}"
 
+    # Modo de analise: claude-api | anthropic-api | openrouter-api | piramyd-api
+    ai_mode = 'claude-api'
+    if config:
+        ai_mode = config.get('ai_mode', 'claude-api')
+        ai_model = config.get('ai_model', '')
+        if ai_model:
+            env['AI_MODEL'] = ai_model
+        if ai_mode == 'anthropic-api':
+            key = config.get('anthropic_api_key', '')
+            if key:
+                env['ANTHROPIC_API_KEY'] = key
+        elif ai_mode == 'openrouter-api':
+            key = config.get('openrouter_api_key', '')
+            if key:
+                env['OPENROUTER_API_KEY'] = key
+        elif ai_mode == 'piramyd-api':
+            key = config.get('thumb_api_key', '')
+            if key:
+                env['PIRAMYD_API_KEY'] = key
+
     proc = subprocess.Popen(
-        [script, video_id, '--ai', 'claude-api'],
+        [script, video_id, '--ai', ai_mode],
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         text=True, env=env
     )
@@ -196,6 +224,7 @@ def run_corte(video_id):
 def run_publicacao(video_id, clip_file, title, description, tags, privacy):
     """Executa yt-publish para um clip."""
     log(f'  Publicando: {title[:60]}')
+    log(f'  Arquivo: {clip_file} ({os.path.getsize(clip_file) / 1024 / 1024:.1f} MB)')
     update_status('publicando', f'Publicando: {title[:50]}', video_id, step='upload')
     script = os.path.join(SCRIPTS_DIR, 'yt-publish')
     env = os.environ.copy()
@@ -205,20 +234,27 @@ def run_publicacao(video_id, clip_file, title, description, tags, privacy):
     if tags:
         cmd += ['--tags', tags]
 
+    log(f'  CMD: {" ".join(cmd[:3])} ...')
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
 
     output_lines = []
     video_id_result = None
-    for line in proc.stdout:
-        line = line.rstrip()
-        if not line:
-            continue
-        output_lines.append(line)
-        log(f'    | {line}')
-        if 'Video ID:' in line:
-            video_id_result = line.split('Video ID:')[1].strip()
+    try:
+        for line in proc.stdout:
+            line = line.rstrip()
+            if not line:
+                continue
+            output_lines.append(line)
+            log(f'    | {line}')
+            if 'Video ID:' in line:
+                video_id_result = line.split('Video ID:')[1].strip()
 
-    proc.wait()
+        proc.wait(timeout=600)  # 10 min max per upload
+    except subprocess.TimeoutExpired:
+        log(f'  TIMEOUT: publicacao excedeu 10 min, matando processo')
+        proc.kill()
+        proc.wait()
+        return None
 
     if proc.returncode == 0:
         if video_id_result:
@@ -379,7 +415,7 @@ def process_cortes(config):
         # Get original row data
         orig_row = all_rows[row_num - 1] if row_num - 1 < len(all_rows) else []
 
-        success = run_corte(vid)
+        success = run_corte(vid, config)
         if success:
             # Check what was produced
             job_dir = os.path.join(LIVES_DIR, vid)
@@ -406,10 +442,13 @@ def process_publicacao(config):
     """Publica clips cortados que ainda nao foram publicados."""
     privacy = config.get('privacy_padrao', 'unlisted')
     max_por_vez = int(config.get('pub_max_por_vez', '2') or '2')
+    log(f'  Buscando lives para publicar (privacy={privacy}, max={max_por_vez})...')
     lives, all_rows = get_pending_lives()
     headers = all_rows[0] if all_rows else []
+    log(f'  {len(lives)} lives encontradas')
 
     # Find lives with clips but not all published
+    found_any = False
     for live in lives:
         vid = live.get('video_id', '')
         if live.get('status_cortes') != 'concluido' or not vid:
@@ -420,6 +459,9 @@ def process_publicacao(config):
 
         if publicados >= qtd_clips or qtd_clips == 0:
             continue
+
+        found_any = True
+        log(f'  Live {vid}: {qtd_clips} clips, {publicados} publicados')
 
         job_dir = os.path.join(LIVES_DIR, vid)
         manifest_file = os.path.join(job_dir, 'clips_manifest.json')
@@ -443,15 +485,18 @@ def process_publicacao(config):
                     published_titles.add(row[title_col])
 
         count = 0
+        log(f'  {len(clips)} clips no manifest, {len(published_titles)} ja publicados')
         for clip in clips:
             if count >= max_por_vez:
                 log(f'  Limite de {max_por_vez} clips por vez atingido')
                 break
 
             if clip['title'] in published_titles:
+                log(f'  Ja publicado: {clip["title"][:50]}')
                 continue
 
             if clip.get('paused', False):
+                log(f'  Pausado: {clip["title"][:50]}')
                 continue
 
             if not os.path.exists(clip['file']):
@@ -473,9 +518,7 @@ def process_publicacao(config):
                 )
 
                 # Add to PUBLICADOS sheet
-                from datetime import datetime as dt
-                now = dt.now().strftime('%Y-%m-%d %H:%M')
-                from dashboard.server import sheets_append as _sa
+                now = datetime.now().strftime('%Y-%m-%d %H:%M')
                 # Direct append
                 token = get_access_token()
                 encoded = urllib.parse.quote('PUBLICADOS!A1')
@@ -504,14 +547,23 @@ def process_publicacao(config):
                 count += 1
                 log(f'  Publicado: {clip["title"][:50]} -> {new_vid}')
 
-        if count > 0:
+        # Update counter if clips were published OR if counter is out of sync
+        actual_published = sum(1 for c in clips if c['title'] in published_titles)
+        new_total = actual_published + count
+        if new_total != publicados:
             row_num = live['_row']
             orig_row = list(all_rows[row_num - 1]) if row_num - 1 < len(all_rows) else []
-            update_live_status(row_num, headers, orig_row, 'clips_publicados', str(publicados + count))
-            log(f'  {count} clips publicados para {vid}')
+            update_live_status(row_num, headers, orig_row, 'clips_publicados', str(new_total))
+            log(f'  Atualizado clips_publicados: {publicados} -> {new_total} para {vid}')
 
-        # Only process one live per run to avoid quota issues
-        break
+        if count > 0:
+            log(f'  {count} clips publicados para {vid}')
+            # Only break after actually publishing to avoid quota issues
+            break
+
+    if not found_any:
+        log('  Nenhum clip pendente para publicar')
+        update_status('idle', 'Nenhum clip para publicar')
 
 
 def main():
@@ -522,7 +574,7 @@ def main():
     update_status('idle', 'Scheduler iniciado')
 
     # Roda cortes uma vez ao iniciar
-    current_hour = datetime.now().strftime('%H')
+    current_minute = datetime.now().strftime('%H:%M')
     try:
         config = load_config()
         cortes_paused = config.get('pipeline_cortes_paused', 'false') == 'true'
@@ -534,14 +586,15 @@ def main():
     except Exception as e:
         log(f'ERRO no corte inicial: {e}')
 
-    # Marca hora atual como ja executada para nao repetir no loop
-    executed_this_hour = {'cortes': current_hour, 'pub': None}
+    # Rastreia qual horario agendado ja foi executado (evita repetir)
+    # No startup, marca o horario atual como executado para nao disparar imediatamente
+    startup_corte = get_matching_schedule(config.get('corte_horarios', '')) if config else None
+    startup_pub = get_matching_schedule(config.get('pub_horarios', '')) if config else None
+    last_executed = {'cortes': startup_corte, 'pub': startup_pub}
+    log(f'  Agendamento: cortes={startup_corte or "nenhum agora"}, pub={startup_pub or "nenhum agora"}')
 
     while True:
         try:
-            now = datetime.now()
-            current_hour = now.strftime('%H')
-
             config = load_config()
 
             # --- Cortes ---
@@ -549,30 +602,31 @@ def main():
             corte_auto = config.get('corte_auto', 'true') == 'true'
             corte_horarios = config.get('corte_horarios', '')
 
-            if not cortes_paused and corte_auto and is_hour_now(corte_horarios):
-                if executed_this_hour['cortes'] != current_hour:
-                    log('==> Hora de cortar!')
+            corte_match = get_matching_schedule(corte_horarios)
+            if not cortes_paused and corte_auto and corte_match:
+                if last_executed['cortes'] != corte_match:
+                    last_executed['cortes'] = corte_match
+                    log(f'==> Hora de cortar! (agendado: {corte_match})')
                     process_cortes(config)
-                    executed_this_hour['cortes'] = current_hour
-            elif executed_this_hour['cortes'] != current_hour:
-                # Reset flag when hour changes
-                pass
+
+            # Reset quando sai do horario
+            if not corte_match and last_executed['cortes']:
+                last_executed['cortes'] = None
 
             # --- Publicacao ---
             pub_paused = config.get('pipeline_pub_paused', 'false') == 'true'
             pub_horarios = config.get('pub_horarios', '')
 
-            if not pub_paused and is_hour_now(pub_horarios):
-                if executed_this_hour['pub'] != current_hour:
-                    log('==> Hora de publicar!')
+            pub_match = get_matching_schedule(pub_horarios)
+            if not pub_paused and pub_match:
+                if last_executed['pub'] != pub_match:
+                    last_executed['pub'] = pub_match
+                    log(f'==> Hora de publicar! (agendado: {pub_match})')
                     process_publicacao(config)
-                    executed_this_hour['pub'] = current_hour
 
-            # Reset when hour changes
-            if executed_this_hour['cortes'] and executed_this_hour['cortes'] != current_hour:
-                executed_this_hour['cortes'] = None
-            if executed_this_hour['pub'] and executed_this_hour['pub'] != current_hour:
-                executed_this_hour['pub'] = None
+            # Reset quando sai do horario
+            if not pub_match and last_executed['pub']:
+                last_executed['pub'] = None
 
         except Exception as e:
             log(f'ERRO: {e}')

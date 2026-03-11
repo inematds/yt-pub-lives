@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>yt-pub-lives v2.0.0 - Lives & Clips Dashboard</title>
+<title>yt-pub-lives v2.1.0 - Lives & Clips Dashboard</title>
 <style>
   :root {
     --bg: #0f1117;
@@ -605,7 +605,7 @@
 
 <div class="container">
   <header>
-    <h1><span>GWS</span> Lives & Clips <small style="font-size:0.5em;color:var(--muted)">- yt-pub-lives v2.0.0</small></h1>
+    <h1><span>GWS</span> Lives & Clips <small style="font-size:0.5em;color:var(--muted)">- yt-pub-lives v2.1.0</small></h1>
     <div class="header-actions">
       <button id="btnCortes" onclick="togglePipeline('cortes')" class="danger small">Parar Cortes</button>
       <button id="btnPub" onclick="togglePipeline('pub')" class="danger small">Parar Publicacao</button>
@@ -710,10 +710,54 @@
       </div>
     </div>
 
+    <!-- API Keys -->
+    <div class="config-section">
+      <h3>API Keys</h3>
+      <div class="config-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+        <div class="config-field">
+          <label>Anthropic (Claude)</label>
+          <input type="password" id="cfgAnthropicApiKey" placeholder="sk-ant-...">
+          <div class="hint">Para analise de cortes via API</div>
+        </div>
+        <div class="config-field">
+          <label>Piramyd (Imagens)</label>
+          <input type="password" id="cfgThumbApiKey" placeholder="sk-...">
+          <div class="hint">Para geracao de thumbnails</div>
+        </div>
+        <div class="config-field">
+          <label>OpenRouter</label>
+          <input type="password" id="cfgOpenrouterApiKey" placeholder="sk-or-...">
+          <div class="hint">Para modelos alternativos</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Analise IA -->
+    <div class="config-section">
+      <h3>Analise de Cortes (IA)</h3>
+      <div class="config-grid" style="grid-template-columns: 1fr 1fr;">
+        <div class="config-field">
+          <label>Modo de Analise</label>
+          <select id="cfgAiMode">
+            <option value="claude-api">Claude CLI (OAuth)</option>
+            <option value="anthropic-api">Anthropic API Key</option>
+            <option value="openrouter-api">OpenRouter API</option>
+            <option value="piramyd-api">Piramyd API</option>
+          </select>
+          <div class="hint">Qual provider usar para analisar topicos</div>
+        </div>
+        <div class="config-field">
+          <label>Modelo de Analise</label>
+          <input type="text" id="cfgAiModel" placeholder="claude-sonnet-4-20250514">
+          <div class="hint">Modelo usado na analise (depende do provider)</div>
+        </div>
+      </div>
+    </div>
+
     <!-- Thumbnails -->
     <div class="config-section">
       <h3>Thumbnails</h3>
-      <div class="config-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+      <div class="config-grid" style="grid-template-columns: 1fr 1fr;">
         <div class="config-field">
           <label>Modo Thumbnail</label>
           <select id="cfgThumbMode">
@@ -721,11 +765,6 @@
             <option value="local">Local (frame do video)</option>
             <option value="none">Sem thumbnail</option>
           </select>
-        </div>
-        <div class="config-field">
-          <label>API Key Imagem</label>
-          <input type="text" id="cfgThumbApiKey" placeholder="PIRAMYD_API_KEY">
-          <div class="hint">Chave da API para geracao de thumbnails</div>
         </div>
         <div class="config-field">
           <label>Modelo de Imagem</label>
@@ -1405,9 +1444,17 @@ async function loadConfig() {
   hourState.corte = stringToHours(c.corte_horarios || '06:00,18:00');
   buildHourPicker('corte');
 
+  // API Keys
+  if (c.anthropic_api_key) document.getElementById('cfgAnthropicApiKey').value = c.anthropic_api_key;
+  if (c.thumb_api_key) document.getElementById('cfgThumbApiKey').value = c.thumb_api_key;
+  if (c.openrouter_api_key) document.getElementById('cfgOpenrouterApiKey').value = c.openrouter_api_key;
+
+  // Analise IA
+  if (c.ai_mode) document.getElementById('cfgAiMode').value = c.ai_mode;
+  if (c.ai_model) document.getElementById('cfgAiModel').value = c.ai_model;
+
   // Thumbnails
   if (c.thumb_mode) document.getElementById('cfgThumbMode').value = c.thumb_mode;
-  if (c.thumb_api_key) document.getElementById('cfgThumbApiKey').value = c.thumb_api_key;
   if (c.thumb_model) document.getElementById('cfgThumbModel').value = c.thumb_model;
 
   // Pipeline state
@@ -1436,8 +1483,12 @@ async function saveConfig() {
     corte_horarios: hoursToString('corte'),
     corte_max_por_dia: document.getElementById('cfgCorteMax').value,
     pub_max_por_vez: document.getElementById('cfgPubMax').value,
-    thumb_mode: document.getElementById('cfgThumbMode').value,
+    ai_mode: document.getElementById('cfgAiMode').value,
+    ai_model: document.getElementById('cfgAiModel').value,
+    anthropic_api_key: document.getElementById('cfgAnthropicApiKey').value,
     thumb_api_key: document.getElementById('cfgThumbApiKey').value,
+    openrouter_api_key: document.getElementById('cfgOpenrouterApiKey').value,
+    thumb_mode: document.getElementById('cfgThumbMode').value,
     thumb_model: document.getElementById('cfgThumbModel').value
   };
 
