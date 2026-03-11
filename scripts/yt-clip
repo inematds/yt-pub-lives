@@ -17,12 +17,12 @@ set -euo pipefail
 export PATH="/usr/bin:$HOME/.npm-global/bin:$HOME/google-cloud-sdk/bin:$HOME/.local/bin:$PATH"
 
 # --- Config ---
-ENV_FILE="${HOME}/.config/gws/.env"
+ENV_FILE="${GWS_CONFIG_DIR:-${HOME}/.config/gws}/.env"
 if [[ -f "$ENV_FILE" ]]; then
   set -a; source "$ENV_FILE"; set +a
 fi
 
-WORK_DIR="${HOME}/projetos/gws/lives"
+WORK_DIR="${LIVES_DIR:-${HOME}/projetos/gws/lives}"
 PRIVACY="unlisted"
 DRY_RUN=false
 PUBLISH=false

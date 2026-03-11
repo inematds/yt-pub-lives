@@ -271,7 +271,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_json(400, {'error': 'id parameter required'})
             return
 
-        lives_dir = os.path.expanduser('~/projetos/gws/lives')
+        lives_dir = os.environ.get('LIVES_DIR', os.path.expanduser('~/projetos/gws/lives'))
         job_dir = os.path.join(lives_dir, video_id)
 
         result = {'video_id': video_id, 'has_transcript': False, 'has_topics': False}
