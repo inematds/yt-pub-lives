@@ -1,0 +1,16 @@
+[Unit]
+Description=YT Pub Lives Dashboard
+After=network.target
+
+[Service]
+Type=simple
+User=nmaldaner
+WorkingDirectory=/home/nmaldaner/projetos/gws/dashboard
+ExecStart=/usr/bin/python3 /home/nmaldaner/projetos/gws/dashboard/server.py 8090
+Restart=always
+RestartSec=5
+Environment=PATH=/usr/bin:/home/nmaldaner/.local/bin:/home/nmaldaner/.npm-global/bin
+Environment=GWS_CONFIG_DIR=/home/nmaldaner/.config/gws
+
+[Install]
+WantedBy=multi-user.target

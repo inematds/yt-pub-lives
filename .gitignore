@@ -4,3 +4,4 @@ __pycache__/
 lives/
 node_modules/
 *.log
+dashboard/scheduler_status.json
