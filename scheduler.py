@@ -192,6 +192,7 @@ def run_corte(video_id, config=None):
     )
 
     output_lines = []
+    last_logged_pct = -10
     step_map = {
         '[1/5]': ('transcricao', 'Baixando transcricao...'),
         '[2/5]': ('analise_transcript', 'Processando transcricao...'),
@@ -205,6 +206,17 @@ def run_corte(video_id, config=None):
         if not line:
             continue
         output_lines.append(line)
+
+        # Filtra linhas de download do yt-dlp (logar apenas a cada 10%)
+        if '[download]' in line and '%' in line:
+            try:
+                pct = float(line.split('%')[0].split()[-1])
+                if pct - last_logged_pct < 10:
+                    continue
+                last_logged_pct = pct
+            except (ValueError, IndexError):
+                pass
+
         log(f'    | {line}')
         # Detecta etapa pelo marcador [N/5]
         for marker, (step, label) in step_map.items():
@@ -682,6 +694,7 @@ def main():
 
     # Roda cortes uma vez ao iniciar
     current_minute = datetime.now().strftime('%H:%M')
+    config = None
     try:
         config = load_config()
         cortes_paused = config.get('pipeline_cortes_paused', 'false') == 'true'
