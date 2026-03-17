@@ -81,6 +81,9 @@ bash setup.sh
 4. Crie credenciais **OAuth 2.0** (tipo Desktop App)
    - Adicione `http://localhost:8888` nas **Authorized redirect URIs**
 5. Crie uma **API Key**
+6. **Verifique o telefone** do canal de destino em https://www.youtube.com/verify
+   - Necessario para upload de thumbnails personalizadas
+   - Sem verificacao, o pipeline funciona mas thumbnails nao sao enviadas
 
 ### 2. Configuracao do projeto
 

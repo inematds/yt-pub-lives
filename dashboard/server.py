@@ -308,20 +308,18 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     def handle_api_publicados(self, filter_live_id=None):
         result = sheets_get('PUBLICADOS!A1:J1000')
         rows = result.get('values', [])
-        if len(rows) < 2:
-            self.send_json(200, {'publicados': [], 'headers': rows[0] if rows else []})
-            return
 
-        headers = rows[0]
+        headers = rows[0] if rows else []
         publicados = []
-        live_col = headers.index('live_video_id') if 'live_video_id' in headers else 3
-        for row in rows[1:]:
-            pub = {}
-            for i, h in enumerate(headers):
-                pub[h] = row[i] if i < len(row) else ''
-            if filter_live_id and pub.get('live_video_id', '') != filter_live_id:
-                continue
-            publicados.append(pub)
+        if len(rows) >= 2:
+            live_col = headers.index('live_video_id') if 'live_video_id' in headers else 3
+            for row in rows[1:]:
+                pub = {}
+                for i, h in enumerate(headers):
+                    pub[h] = row[i] if i < len(row) else ''
+                if filter_live_id and pub.get('live_video_id', '') != filter_live_id:
+                    continue
+                publicados.append(pub)
 
         # Enrich publicados with filename from manifest
         lives_dir = os.environ.get('LIVES_DIR', os.path.join(PROJECT_ROOT, 'lives'))

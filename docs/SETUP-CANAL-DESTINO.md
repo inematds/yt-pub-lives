@@ -162,7 +162,27 @@ sudo systemctl enable --now yt-dashboard2 yt-scheduler2
 
 ---
 
-## 8. Checklist final
+## 8. Thumbnails personalizadas
+
+Para que o pipeline consiga fazer upload de thumbnails personalizadas, o canal de destino
+precisa ter o **telefone verificado** no YouTube.
+
+Sem essa verificacao, o upload de videos funciona normalmente, mas thumbnails retornam:
+```
+HTTP 403: The authenticated user doesn't have permissions to upload and set custom video thumbnails.
+```
+
+Para verificar:
+1. Acesse https://www.youtube.com/verify com a conta dona do canal de destino
+2. Verifique o numero de telefone
+3. Apos verificacao, thumbnails serao enviadas automaticamente pelo pipeline
+
+As thumbnails sao geradas via IA (LLM + gerador de imagem) e salvas em `lives/thumbs/`.
+Caso o upload falhe, ficam como pendentes e podem ser reenviadas pelo dashboard.
+
+---
+
+## 9. Checklist final
 
 - [x] Projeto GCP criado (`certain-perigee-490501-r2`)
 - [x] YouTube Data API v3 ativada
@@ -178,7 +198,10 @@ sudo systemctl enable --now yt-dashboard2 yt-scheduler2
 - [x] Planilha criada com abas CONFIG, LIVES, PUBLICADOS
 - [x] Porta 8091 (sem conflito com projeto original na 8090)
 - [x] Remote git atualizado para `inematds/yt-pub-lives2`
-- [ ] Copiar prompts de IA para `config/` (prompt_cortes.txt, prompt_pub.txt, prompt_thumb.txt)
+- [x] Prompts de IA copiados para `config/`
+- [x] 116 lives de Jan-Mar 2025 sincronizadas
+- [x] Pipeline testado: corte (9 clips) + publicacao (9 clips publicos)
+- [x] Thumbnails geradas com IA (9 imagens)
+- [ ] Verificar telefone do canal para habilitar custom thumbnails
+- [ ] Upload das thumbnails pendentes apos verificacao
 - [ ] Instalar systemd services
-- [ ] Primeiro sync de lives pelo dashboard
-- [ ] Testar pipeline completo (corte + publicacao)
