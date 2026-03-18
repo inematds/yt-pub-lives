@@ -516,10 +516,14 @@ for clip in clips:
 
     tags = ','.join(clip.get('tags', []))
 
+    # Append original live link to description
+    desc = clip['description']
+    desc += f"\n\nLive original: https://www.youtube.com/watch?v=$VIDEO_ID"
+
     cmd = [
         'yt-publish', clip['file'],
         '--title', clip['title'],
-        '--description', clip['description'],
+        '--description', desc,
         '--privacy', '$PRIVACY',
         '--tags', tags,
         '--category', '27'
