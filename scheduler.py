@@ -719,12 +719,17 @@ def main():
         try:
             config = load_config()
 
-            # --- Cortes ---
+            # Captura matches ANTES de executar (corte pode demorar e perder o minuto)
             cortes_paused = config.get('pipeline_cortes_paused', 'false') == 'true'
             corte_auto = config.get('corte_auto', 'true') == 'true'
             corte_horarios = config.get('corte_horarios', '')
-
             corte_match = get_matching_schedule(corte_horarios)
+
+            pub_paused = config.get('pipeline_pub_paused', 'false') == 'true'
+            pub_horarios = config.get('pub_horarios', '')
+            pub_match = get_matching_schedule(pub_horarios)
+
+            # --- Cortes ---
             if not cortes_paused and corte_auto and corte_match:
                 if last_executed['cortes'] != corte_match:
                     last_executed['cortes'] = corte_match
@@ -736,10 +741,6 @@ def main():
                 last_executed['cortes'] = None
 
             # --- Publicacao ---
-            pub_paused = config.get('pipeline_pub_paused', 'false') == 'true'
-            pub_horarios = config.get('pub_horarios', '')
-
-            pub_match = get_matching_schedule(pub_horarios)
             if not pub_paused and pub_match:
                 if last_executed['pub'] != pub_match:
                     last_executed['pub'] = pub_match
