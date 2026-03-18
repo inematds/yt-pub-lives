@@ -618,8 +618,9 @@ def process_publicacao(config):
             update_status('publicando', f'Refinando com IA: {clip_title[:50]}', vid, step='refine', clip_title=clip_title[:50])
             clip_title, clip_desc = refine_pub_with_ai(clip_title, clip_desc, config, video_id=vid)
 
-            # Append link da live original (garantido pelo codigo)
-            clip_desc += f'\n\nLive original: https://www.youtube.com/watch?v={vid}'
+            # Append link da live original (se ativado na config)
+            if config.get('pub_link_live', 'true') == 'true':
+                clip_desc += f'\n\nLive original: https://www.youtube.com/watch?v={vid}'
 
             update_status('publicando', f'Enviando: {clip_title[:50]}', vid, step='upload', clip_title=clip_title[:50])
             new_vid = run_publicacao(

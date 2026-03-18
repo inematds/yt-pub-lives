@@ -744,7 +744,7 @@
     <!-- Publicacao (embaixo) -->
     <div class="config-section">
       <h3>Publicacao de Clips</h3>
-      <div class="config-grid" style="grid-template-columns: 1fr 1fr;">
+      <div class="config-grid" style="grid-template-columns: 1fr 1fr 1fr;">
         <div class="config-field">
           <label>Privacidade padrao</label>
           <select id="cfgPrivacy">
@@ -757,6 +757,14 @@
           <label>Clips por publicacao</label>
           <input type="number" id="cfgPubMax" min="1" max="50" value="2">
           <div class="hint">Quantos clips publicar por vez</div>
+        </div>
+        <div class="config-field">
+          <label>Link da live na descricao</label>
+          <select id="cfgPubLinkLive">
+            <option value="true">Sim</option>
+            <option value="false">Nao</option>
+          </select>
+          <div class="hint">Inclui link da live original</div>
         </div>
       </div>
       <div style="margin-top: 14px;">
@@ -1597,6 +1605,7 @@ async function loadConfig() {
 
   // Publicacao
   if (c.pub_max_por_vez) document.getElementById('cfgPubMax').value = c.pub_max_por_vez;
+  document.getElementById('cfgPubLinkLive').value = c.pub_link_live || 'true';
 
   // Cortes
   if (c.corte_auto) document.getElementById('cfgCorteAuto').value = c.corte_auto;
@@ -1692,6 +1701,7 @@ async function saveConfig() {
     corte_minuto: document.getElementById('cfgCorteMinuto').value,
     corte_max_por_dia: document.getElementById('cfgCorteMax').value,
     pub_max_por_vez: document.getElementById('cfgPubMax').value,
+    pub_link_live: document.getElementById('cfgPubLinkLive').value,
     ai_mode: document.getElementById('cfgAiMode').value,
     ai_model: document.getElementById('cfgAiModel').value,
     anthropic_api_key: document.getElementById('cfgAnthropicApiKey').value,
