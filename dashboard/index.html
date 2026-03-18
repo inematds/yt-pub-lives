@@ -695,6 +695,15 @@
     </div>
   </div>
 
+  <!-- Schedule Info -->
+  <div class="health-bar" id="scheduleInfo" style="gap:16px">
+    <span class="health-label">Proximo corte:</span>
+    <span id="nextCorte" style="color:var(--blue)">-</span>
+    <span style="color:var(--border)">|</span>
+    <span class="health-label">Proxima pub:</span>
+    <span id="nextPub" style="color:var(--green)">-</span>
+  </div>
+
   <!-- Scheduler Status -->
   <div class="scheduler-bar" id="schedulerBar">
     <span class="scheduler-dot" id="schedulerDot"></span>
@@ -1621,6 +1630,11 @@ async function loadConfig() {
   hourState.corte = stringToHours(c.corte_horarios || '06:00,18:00');
   buildHourPicker('corte');
 
+  // Salva horarios para exibir proximos
+  window._cfgCorteHorarios = c.corte_horarios || '';
+  window._cfgPubHorarios = c.pub_horarios || '';
+  updateNextSchedules();
+
   // API Keys
   if (c.anthropic_api_key) document.getElementById('cfgAnthropicApiKey').value = c.anthropic_api_key;
   if (c.thumb_api_key) document.getElementById('cfgThumbApiKey').value = c.thumb_api_key;
@@ -1880,6 +1894,34 @@ async function loadAll() {
 
 // Atualiza status do scheduler a cada 5s
 setInterval(loadSchedulerStatus, 5000);
+
+// --- Schedule next times ---
+function updateNextSchedules() {
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+
+  function findNext(horarios) {
+    if (!horarios) return '-';
+    const times = horarios.split(',').map(t => t.trim()).filter(Boolean);
+    if (!times.length) return 'desativado';
+    const mins = times.map(t => {
+      const [h, m] = t.split(':').map(Number);
+      return h * 60 + m;
+    }).sort((a, b) => a - b);
+    let next = mins.find(m => m > nowMin);
+    if (next === undefined) next = mins[0]; // amanha
+    const hh = String(Math.floor(next / 60)).padStart(2, '0');
+    const mm = String(next % 60).padStart(2, '0');
+    const isToday = next > nowMin;
+    return hh + ':' + mm + (isToday ? '' : ' (amanha)');
+  }
+
+  const corteEl = document.getElementById('nextCorte');
+  const pubEl = document.getElementById('nextPub');
+  if (window._cfgCorteHorarios !== undefined) corteEl.textContent = findNext(window._cfgCorteHorarios);
+  if (window._cfgPubHorarios !== undefined) pubEl.textContent = findNext(window._cfgPubHorarios);
+}
+setInterval(updateNextSchedules, 30000);
 
 // --- Health check ---
 const healthMap = {
