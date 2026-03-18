@@ -763,6 +763,29 @@ def main():
             if not pub_match and last_executed['pub']:
                 last_executed['pub'] = None
 
+            # --- Auto-sync (meia-noite) ---
+            now_hm = datetime.now().strftime('%H:%M')
+            sync_auto = config.get('sync_auto', 'false') == 'true'
+            if sync_auto and now_hm == '00:00':
+                if last_executed.get('sync') != '00:00':
+                    last_executed['sync'] = '00:00'
+                    log('==> Auto-sync: sincronizando lives do canal de origem...')
+                    try:
+                        dashboard_port = config.get('dashboard_port', '8091')
+                        payload = json.dumps({'mode': 'novas', 'max_lives': 1000}).encode()
+                        req = urllib.request.Request(
+                            f'http://localhost:{dashboard_port}/api/sync',
+                            data=payload
+                        )
+                        req.add_header('Content-Type', 'application/json')
+                        resp = urllib.request.urlopen(req, timeout=120)
+                        result = json.loads(resp.read())
+                        log(f'  Auto-sync concluido: {result.get("novas_lives", 0)} novas lives')
+                    except Exception as e:
+                        log(f'  ERRO no auto-sync: {e}')
+            if now_hm != '00:00' and last_executed.get('sync'):
+                last_executed['sync'] = None
+
         except Exception as e:
             log(f'ERRO: {e}')
 
