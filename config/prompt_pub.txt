@@ -14,8 +14,7 @@ Regras para a DESCRICAO:
 - 2-3 paragrafos curtos explicando o conteudo
 - Inclua palavras-chave naturalmente
 - Termine com call-to-action sutil
-- No final, inclua o link da live original no formato: "Live original: https://www.youtube.com/watch?v={video_id}" (use o Video ID fornecido)
-- NAO inclua timestamps ou hashtags (serao adicionados automaticamente)
+- NAO inclua links, timestamps ou hashtags (serao adicionados automaticamente)
 
 Retorne SOMENTE este JSON:
 {
