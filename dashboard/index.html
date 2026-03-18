@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>yt-pub-lives2 v3.6.8 - Lives & Clips Dashboard</title>
+<title>yt-pub-lives2 v3.7.8 - Lives & Clips Dashboard</title>
 <style>
   :root {
     --bg: #0f1117;
@@ -650,14 +650,15 @@
 
 <div class="container">
   <header>
-    <h1><span>GWS</span> Lives & Clips <small style="font-size:0.5em;color:var(--muted)">- yt-pub-lives2 <a href="#" onclick="openModal('modalChangelog');return false" style="color:var(--accent);text-decoration:none" title="Ver changelog">v3.6.8</a></small>
+    <h1><span>GWS</span> Lives & Clips <small style="font-size:0.5em;color:var(--muted)">- yt-pub-lives2 <a href="#" onclick="openModal('modalChangelog');return false" style="color:var(--accent);text-decoration:none" title="Ver changelog">v3.7.8</a></small>
       <span id="headerCanais" style="display:block;font-size:0.4em;font-weight:normal;margin-top:4px"></span>
     </h1>
     <div class="header-actions">
       <button id="btnCortes" onclick="togglePipeline('cortes')" class="danger small">Parar Cortes</button>
       <button id="btnPub" onclick="togglePipeline('pub')" class="danger small">Parar Publicacao</button>
       <button class="secondary" onclick="toggleConfig()">Configuracoes</button>
-      <button onclick="toggleSyncPanel()" id="btnSync">Sincronizar Lives</button>
+      <button onclick="quickSync()" id="btnSync">Sincronizar Lives</button>
+      <button class="secondary small" onclick="toggleSyncPanel()" title="Sync avancado com filtros">Sync Avancado</button>
     </div>
   </header>
 
@@ -1852,6 +1853,28 @@ function toggleSyncPanel() {
   panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
 }
 
+async function quickSync() {
+  const btn = document.getElementById('btnSync');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Sincronizando...';
+
+  try {
+    const data = await fetchJson('/api/sync', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ mode: 'novas', max_lives: 1000 })
+    });
+    const msg = `${data.novas_lives} novas lives adicionadas. ${data.ja_existentes} ja existiam.`;
+    showToast(msg);
+    await loadAll();
+  } catch (e) {
+    showToast('Erro ao sincronizar: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Sincronizar Lives';
+  }
+}
+
 async function syncLives() {
   const btn = document.getElementById('btnSyncRun');
   btn.disabled = true;
@@ -2203,7 +2226,7 @@ loadAll();
       <button onclick="closeModal('modalChangelog')" style="background:none;border:none;color:var(--muted);font-size:1.2em;cursor:pointer">X</button>
     </div>
     <div class="modal-body" style="padding:16px;overflow-y:auto;font-size:0.85em;line-height:1.8">
-      <h3 style="color:var(--accent);margin-bottom:8px">v3.6.8</h3>
+      <h3 style="color:var(--accent);margin-bottom:8px">v3.7.8</h3>
       <p style="color:var(--muted);margin-bottom:4px"><strong>Features:</strong></p>
       <ul style="margin:0 0 8px 20px;color:var(--text)">
         <li>Health bar - status do sistema (yt-dlp, Sheets, APIs, YouTube, Scheduler)</li>
@@ -2211,6 +2234,7 @@ loadAll();
         <li>Toggle "Link da live na descricao" nas configuracoes</li>
         <li>Corte roda em thread separada - nao bloqueia publicacao</li>
         <li>Changelog acessivel pelo numero da versao</li>
+        <li>Sync rapido com 1 clique (sem filtros) + sync avancado separado</li>
       </ul>
       <p style="color:var(--muted);margin-bottom:4px"><strong>Bugs corrigidos:</strong></p>
       <ul style="margin:0 0 16px 20px;color:var(--text)">
