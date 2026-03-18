@@ -78,7 +78,7 @@ def get_access_token():
     }).encode()
 
     req = urllib.request.Request('https://oauth2.googleapis.com/token', data=token_data)
-    resp = json.loads(urllib.request.urlopen(req).read())
+    resp = json.loads(urllib.request.urlopen(req, timeout=30).read())
     return resp['access_token']
 
 
@@ -89,10 +89,12 @@ def sheets_get(range_str):
     req = urllib.request.Request(url)
     req.add_header('Authorization', f'Bearer {token}')
     try:
-        resp = urllib.request.urlopen(req)
+        resp = urllib.request.urlopen(req, timeout=30)
         return json.loads(resp.read())
     except urllib.error.HTTPError as e:
         return {'error': e.read().decode(), 'status': e.code}
+    except (urllib.error.URLError, TimeoutError) as e:
+        return {'error': str(e), 'status': 0}
 
 
 def sheets_update(range_str, values):
@@ -104,10 +106,12 @@ def sheets_update(range_str, values):
     req.add_header('Authorization', f'Bearer {token}')
     req.add_header('Content-Type', 'application/json')
     try:
-        resp = urllib.request.urlopen(req)
+        resp = urllib.request.urlopen(req, timeout=30)
         return json.loads(resp.read())
     except urllib.error.HTTPError as e:
         return {'error': e.read().decode()}
+    except (urllib.error.URLError, TimeoutError) as e:
+        return {'error': str(e)}
 
 
 def load_config():
