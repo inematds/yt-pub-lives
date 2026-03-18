@@ -709,19 +709,12 @@ def main():
     log(f'  Config: {CONFIG_DIR}')
     update_status('idle', 'Scheduler iniciado')
 
-    # Roda cortes uma vez ao iniciar
     config = None
     corte_running = threading.Event()
     try:
         config = load_config()
-        cortes_paused = config.get('pipeline_cortes_paused', 'false') == 'true'
-        if not cortes_paused:
-            log('==> Corte inicial ao startar')
-            process_cortes(config)
-        else:
-            log('==> Cortes pausados, pulando corte inicial')
     except Exception as e:
-        log(f'ERRO no corte inicial: {e}')
+        log(f'ERRO ao carregar config: {e}')
 
     # Rastreia qual horario agendado ja foi executado (evita repetir)
     startup_corte = get_matching_schedule(config.get('corte_horarios', '')) if config else None
