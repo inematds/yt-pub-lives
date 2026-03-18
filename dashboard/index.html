@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>yt-pub-lives v2.3.1 - Lives & Clips Dashboard</title>
+<title>yt-pub-lives v3.8.8 - Lives & Clips Dashboard</title>
 <style>
   :root {
     --bg: #0f1117;
@@ -650,13 +650,14 @@
 
 <div class="container">
   <header>
-    <h1><span>GWS</span> Lives & Clips <small style="font-size:0.5em;color:var(--muted)">- yt-pub-lives <a href="#" onclick="openModal('modalChangelog');return false" style="color:var(--accent);text-decoration:none" title="Ver changelog">v3.7.8</a></small></h1>
+    <h1><span>GWS</span> Lives & Clips <small style="font-size:0.5em;color:var(--muted)">- yt-pub-lives <a href="#" onclick="openModal('modalChangelog');return false" style="color:var(--accent);text-decoration:none" title="Ver changelog">v3.8.8</a></small></h1>
     <div class="header-actions">
       <button id="btnCortes" onclick="togglePipeline('cortes')" class="danger small">Parar Cortes</button>
       <button id="btnPub" onclick="togglePipeline('pub')" class="danger small">Parar Publicacao</button>
       <button class="secondary" onclick="toggleConfig()">Configuracoes</button>
       <button onclick="quickSync()" id="btnSync">Sincronizar Lives</button>
       <button class="secondary small" onclick="toggleSyncPanel()" title="Sync avancado com filtros">Sync Avancado</button>
+      <button class="small" id="btnAutoSync" onclick="toggleAutoSync()" title="Sync automatico a meia-noite">Auto-sync: -</button>
     </div>
   </header>
 
@@ -1705,7 +1706,9 @@ async function loadConfig() {
   // Pipeline state
   cortesPaused = c.pipeline_cortes_paused === 'true';
   pubPaused = c.pipeline_pub_paused === 'true';
+  syncAutoActive = c.sync_auto === 'true';
   updatePipelineBtns();
+  updateAutoSyncBtn();
 
   // Prompts
   try {
@@ -1879,6 +1882,41 @@ async function syncLives() {
 
 let cortesPaused = false;
 let pubPaused = false;
+let syncAutoActive = false;
+
+function updateAutoSyncBtn() {
+  const btn = document.getElementById('btnAutoSync');
+  if (syncAutoActive) {
+    btn.textContent = 'Auto-sync: ON';
+    btn.className = 'small';
+    btn.style.background = 'var(--green)';
+    btn.style.color = '#000';
+  } else {
+    btn.textContent = 'Auto-sync: OFF';
+    btn.className = 'secondary small';
+    btn.style.background = '';
+    btn.style.color = '';
+  }
+}
+
+async function toggleAutoSync() {
+  const btn = document.getElementById('btnAutoSync');
+  btn.disabled = true;
+  const newVal = !syncAutoActive;
+  try {
+    await fetchJson('/api/config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({sync_auto: newVal ? 'true' : 'false'})
+    });
+    syncAutoActive = newVal;
+    updateAutoSyncBtn();
+    showToast(newVal ? 'Auto-sync ativado (roda a meia-noite)' : 'Auto-sync desativado');
+  } catch (e) {
+    showToast('Erro: ' + e.message, 'error');
+  }
+  btn.disabled = false;
+}
 
 function updatePipelineBtns() {
   const btnC = document.getElementById('btnCortes');
@@ -2191,9 +2229,10 @@ loadAll();
       <button onclick="closeModal('modalChangelog')" style="background:none;border:none;color:var(--muted);font-size:1.2em;cursor:pointer">X</button>
     </div>
     <div class="modal-body" style="padding:16px;overflow-y:auto;font-size:0.85em;line-height:1.8">
-      <h3 style="color:var(--accent);margin-bottom:8px">v3.7.8</h3>
+      <h3 style="color:var(--accent);margin-bottom:8px">v3.8.8</h3>
       <p style="color:var(--muted);margin-bottom:4px"><strong>Features:</strong></p>
       <ul style="margin:0 0 8px 20px;color:var(--text)">
+        <li>Auto-sync: toggle ON/OFF, sincroniza lives faltantes a meia-noite</li>
         <li>Sync rapido com 1 clique (sem filtros) + sync avancado separado</li>
         <li>Health bar - status do sistema (yt-dlp, Sheets, APIs, YouTube, Scheduler)</li>
         <li>Proximos horarios de corte/pub visiveis no dashboard</li>
