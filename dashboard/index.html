@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>yt-pub-lives2 v3.2.0 - Lives & Clips Dashboard</title>
+<title>yt-pub-lives2 v3.3.0 - Lives & Clips Dashboard</title>
 <style>
   :root {
     --bg: #0f1117;
@@ -508,6 +508,51 @@
     background: var(--border);
   }
 
+  /* Health status bar */
+  .health-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 8px 16px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 12px;
+    font-size: 0.75rem;
+  }
+  .health-bar .health-label {
+    font-weight: 600;
+    color: var(--muted);
+    margin-right: 4px;
+  }
+  .health-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .health-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .health-dot.ok { background: var(--green); }
+  .health-dot.err { background: var(--red); }
+  .health-dot.loading { background: var(--muted); animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: 0.4; } }
+  .health-refresh {
+    margin-left: auto;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 2px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.7rem;
+  }
+  .health-refresh:hover { color: var(--text); border-color: var(--muted); }
+
   /* Scheduler status bar */
   .scheduler-bar {
     display: flex;
@@ -605,7 +650,7 @@
 
 <div class="container">
   <header>
-    <h1><span>GWS</span> Lives & Clips <small style="font-size:0.5em;color:var(--muted)">- yt-pub-lives2 v3.2.0</small>
+    <h1><span>GWS</span> Lives & Clips <small style="font-size:0.5em;color:var(--muted)">- yt-pub-lives2 v3.3.0</small>
       <span id="headerCanais" style="display:block;font-size:0.4em;font-weight:normal;margin-top:4px"></span>
     </h1>
     <div class="header-actions">
@@ -652,6 +697,18 @@
       </div>
       <div id="syncResult" style="margin-top:8px;color:var(--muted);font-size:0.9em"></div>
     </div>
+  </div>
+
+  <!-- Health Status -->
+  <div class="health-bar" id="healthBar">
+    <span class="health-label">Sistema:</span>
+    <span class="health-item"><span class="health-dot loading" id="hDotYtdlp"></span> yt-dlp</span>
+    <span class="health-item"><span class="health-dot loading" id="hDotSheets"></span> Sheets</span>
+    <span class="health-item"><span class="health-dot loading" id="hDotIa"></span> API IA</span>
+    <span class="health-item"><span class="health-dot loading" id="hDotThumb"></span> API Thumb</span>
+    <span class="health-item"><span class="health-dot loading" id="hDotYoutube"></span> YouTube</span>
+    <span class="health-item"><span class="health-dot loading" id="hDotScheduler"></span> Scheduler</span>
+    <button class="health-refresh" onclick="checkHealth()">verificar</button>
   </div>
 
   <!-- Stats -->
@@ -1897,6 +1954,48 @@ async function loadAll() {
 
 // Atualiza status do scheduler a cada 5s
 setInterval(loadSchedulerStatus, 5000);
+
+// --- Health check ---
+const healthMap = {
+  yt_dlp: 'hDotYtdlp',
+  sheets: 'hDotSheets',
+  api_ia: 'hDotIa',
+  api_thumb: 'hDotThumb',
+  youtube: 'hDotYoutube',
+  scheduler: 'hDotScheduler'
+};
+
+async function checkHealth() {
+  // Set all dots to loading
+  Object.values(healthMap).forEach(id => {
+    const dot = document.getElementById(id);
+    dot.className = 'health-dot loading';
+    dot.title = 'verificando...';
+  });
+  try {
+    const data = await fetchJson('/api/health');
+    for (const [key, elId] of Object.entries(healthMap)) {
+      const dot = document.getElementById(elId);
+      const info = data[key];
+      if (info) {
+        dot.className = 'health-dot ' + (info.ok ? 'ok' : 'err');
+        dot.title = info.detail || '';
+      } else {
+        dot.className = 'health-dot err';
+        dot.title = 'sem resposta';
+      }
+    }
+  } catch (e) {
+    Object.values(healthMap).forEach(id => {
+      const dot = document.getElementById(id);
+      dot.className = 'health-dot err';
+      dot.title = 'falha na verificacao';
+    });
+  }
+}
+
+// Health check on load
+checkHealth();
 
 // --- Privacy cycle & Delete ---
 const privacyOrder = ['unlisted', 'public', 'private'];

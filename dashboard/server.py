@@ -185,6 +185,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.handle_api_transcript(video_id)
         elif path == '/api/thumbs/pending':
             self.handle_thumbs_pending()
+        elif path == '/api/health':
+            self.handle_api_health()
         elif path.startswith('/clips/'):
             self.handle_serve_clip(path)
         elif path == '/':
@@ -234,6 +236,86 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
         self.wfile.write(json.dumps(data, ensure_ascii=False).encode())
+
+    def handle_api_health(self):
+        """Check health of all system dependencies."""
+        import subprocess
+        checks = {}
+
+        # yt-dlp
+        try:
+            r = subprocess.run(['yt-dlp', '--version'], capture_output=True, text=True, timeout=5)
+            checks['yt_dlp'] = {'ok': r.returncode == 0, 'detail': r.stdout.strip() if r.returncode == 0 else 'erro'}
+        except Exception as e:
+            checks['yt_dlp'] = {'ok': False, 'detail': str(e)}
+
+        # Google Sheets
+        try:
+            result = sheets_get('CONFIG!A1:A1')
+            checks['sheets'] = {'ok': 'error' not in result, 'detail': 'ok' if 'error' not in result else result.get('error', '')}
+        except Exception as e:
+            checks['sheets'] = {'ok': False, 'detail': str(e)}
+
+        # Piramyd API (IA cortes/pub)
+        try:
+            env_file = os.path.join(CONFIG_DIR, '.env')
+            api_key = ''
+            if os.path.exists(env_file):
+                with open(env_file) as f:
+                    for line in f:
+                        if line.startswith('PIRAMYD_API_KEY='):
+                            api_key = line.split('=', 1)[1].strip()
+            if not api_key:
+                api_key = os.environ.get('PIRAMYD_API_KEY', '')
+            if api_key:
+                payload = json.dumps({'model': 'claude-sonnet-4.5', 'messages': [{'role': 'user', 'content': 'ok'}], 'max_tokens': 5}).encode()
+                req = urllib.request.Request('https://api.piramyd.cloud/v1/chat/completions', data=payload)
+                req.add_header('Content-Type', 'application/json')
+                req.add_header('Authorization', f'Bearer {api_key}')
+                urllib.request.urlopen(req, timeout=15)
+                checks['api_ia'] = {'ok': True, 'detail': 'ok'}
+            else:
+                checks['api_ia'] = {'ok': False, 'detail': 'sem api key'}
+        except Exception as e:
+            checks['api_ia'] = {'ok': False, 'detail': str(e)[:80]}
+
+        # Thumbnail API
+        try:
+            if api_key:
+                payload = json.dumps({'prompt': 'test', 'model': 'flux2-klein-4b', 'width': 64, 'height': 64}).encode()
+                req = urllib.request.Request('https://api.piramyd.cloud/v1/images/generations', data=payload)
+                req.add_header('Content-Type', 'application/json')
+                req.add_header('Authorization', f'Bearer {api_key}')
+                urllib.request.urlopen(req, timeout=15)
+                checks['api_thumb'] = {'ok': True, 'detail': 'ok'}
+            else:
+                checks['api_thumb'] = {'ok': False, 'detail': 'sem api key'}
+        except Exception as e:
+            checks['api_thumb'] = {'ok': False, 'detail': str(e)[:80]}
+
+        # YouTube API
+        try:
+            result = youtube_api('channels', {'part': 'snippet', 'mine': 'true'})
+            if 'items' in result:
+                checks['youtube'] = {'ok': True, 'detail': result['items'][0]['snippet']['title']}
+            else:
+                checks['youtube'] = {'ok': False, 'detail': result.get('error', 'sem resposta')[:80]}
+        except Exception as e:
+            checks['youtube'] = {'ok': False, 'detail': str(e)[:80]}
+
+        # Scheduler process
+        try:
+            status_file = os.path.join(os.path.dirname(__file__), 'scheduler_status.json')
+            if os.path.exists(status_file):
+                with open(status_file) as f:
+                    st = json.load(f)
+                checks['scheduler'] = {'ok': st.get('state') != 'offline', 'detail': st.get('state', 'offline')}
+            else:
+                checks['scheduler'] = {'ok': False, 'detail': 'offline'}
+        except Exception as e:
+            checks['scheduler'] = {'ok': False, 'detail': str(e)}
+
+        self.send_json(200, checks)
 
     def handle_scheduler_status(self):
         status_file = os.path.join(os.path.dirname(__file__), 'scheduler_status.json')
