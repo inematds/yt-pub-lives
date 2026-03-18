@@ -547,8 +547,19 @@ def process_cortes(config):
             update_live_status(row_num, headers, list(orig_row), 'status_cortes', 'erro')
 
 
+_pub_lock = threading.Lock()
+
 def process_publicacao(config):
     """Publica clips cortados que ainda nao foram publicados."""
+    if not _pub_lock.acquire(blocking=False):
+        log('  Publicacao ja em andamento, pulando')
+        return
+    try:
+        _process_publicacao_inner(config)
+    finally:
+        _pub_lock.release()
+
+def _process_publicacao_inner(config):
     privacy = config.get('privacy_padrao', 'unlisted')
     max_por_vez = int(config.get('pub_max_por_vez', '2') or '2')
     log(f'  Buscando lives para publicar (privacy={privacy}, max={max_por_vez})...')
