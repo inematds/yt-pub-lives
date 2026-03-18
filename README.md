@@ -1,5 +1,7 @@
 # yt-pub-lives2
 
+![yt-pub-lives2 Banner](assets/banner.jpg)
+
 Pipeline automatizado para cortar lives do YouTube em clips por topico e publicar em outro canal.
 
 **Canal de origem** (lives): [INEMA TDS](https://www.youtube.com/@inematdsx) (`UC2QbQDyPKuHk93dwo5iq3Sw`)
