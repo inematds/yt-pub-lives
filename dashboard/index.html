@@ -650,14 +650,53 @@
 
 <div class="container">
   <header>
-    <h1><span>GWS</span> Lives & Clips <small style="font-size:0.5em;color:var(--muted)">- yt-pub-lives <a href="#" onclick="openModal('modalChangelog');return false" style="color:var(--accent);text-decoration:none" title="Ver changelog">v3.6.8</a></small></h1>
+    <h1><span>GWS</span> Lives & Clips <small style="font-size:0.5em;color:var(--muted)">- yt-pub-lives <a href="#" onclick="openModal('modalChangelog');return false" style="color:var(--accent);text-decoration:none" title="Ver changelog">v3.7.8</a></small></h1>
     <div class="header-actions">
       <button id="btnCortes" onclick="togglePipeline('cortes')" class="danger small">Parar Cortes</button>
       <button id="btnPub" onclick="togglePipeline('pub')" class="danger small">Parar Publicacao</button>
       <button class="secondary" onclick="toggleConfig()">Configuracoes</button>
-      <button onclick="syncLives()" id="btnSync">Sincronizar Lives</button>
+      <button onclick="quickSync()" id="btnSync">Sincronizar Lives</button>
+      <button class="secondary small" onclick="toggleSyncPanel()" title="Sync avancado com filtros">Sync Avancado</button>
     </div>
   </header>
+
+  <!-- Sync Panel -->
+  <div class="config-panel" id="syncPanel" style="display:none;margin-bottom:16px">
+    <div class="config-section">
+      <h3>Sincronizar Lives do Canal de Origem</h3>
+      <div class="config-grid" style="grid-template-columns: 1fr 1fr 1fr 1fr auto;">
+        <div class="config-field">
+          <label>Modo</label>
+          <select id="syncMode">
+            <option value="novas">So pendentes (novas)</option>
+            <option value="todas">Todas no periodo</option>
+          </select>
+        </div>
+        <div class="config-field">
+          <label>Data inicio</label>
+          <input type="date" id="syncDateFrom">
+        </div>
+        <div class="config-field">
+          <label>Data fim</label>
+          <input type="date" id="syncDateTo">
+        </div>
+        <div class="config-field">
+          <label>Max lives</label>
+          <select id="syncMaxLives">
+            <option value="10">10</option>
+            <option value="50" selected>50</option>
+            <option value="100">100</option>
+            <option value="500">500</option>
+            <option value="1000">1000</option>
+          </select>
+        </div>
+        <div class="config-field" style="display:flex;align-items:flex-end">
+          <button onclick="syncLives()" id="btnSyncRun">Sincronizar</button>
+        </div>
+      </div>
+      <div id="syncResult" style="margin-top:8px;color:var(--muted);font-size:0.9em"></div>
+    </div>
+  </div>
 
   <!-- Health Status -->
   <div class="health-bar" id="healthBar">
@@ -1775,7 +1814,12 @@ async function saveConfig() {
   }
 }
 
-async function syncLives() {
+function toggleSyncPanel() {
+  const panel = document.getElementById('syncPanel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+async function quickSync() {
   const btn = document.getElementById('btnSync');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>Sincronizando...';
@@ -1784,16 +1828,52 @@ async function syncLives() {
     const data = await fetchJson('/api/sync', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({max_pages: 5})
+      body: JSON.stringify({ mode: 'novas', max_lives: 1000 })
     });
-
-    showToast(`Sync completo! ${data.novas_lives} novas lives encontradas.`);
+    const msg = `${data.novas_lives} novas lives adicionadas. ${data.ja_existentes} ja existiam.`;
+    showToast(msg);
     await loadAll();
   } catch (e) {
     showToast('Erro ao sincronizar: ' + e.message, 'error');
   } finally {
     btn.disabled = false;
     btn.textContent = 'Sincronizar Lives';
+  }
+}
+
+async function syncLives() {
+  const btn = document.getElementById('btnSyncRun');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Sincronizando...';
+  document.getElementById('syncResult').textContent = '';
+
+  const mode = document.getElementById('syncMode').value;
+  const dateFrom = document.getElementById('syncDateFrom').value;
+  const dateTo = document.getElementById('syncDateTo').value;
+  const maxLives = parseInt(document.getElementById('syncMaxLives').value);
+
+  const payload = { mode, max_lives: maxLives };
+  if (dateFrom) payload.date_from = dateFrom;
+  if (dateTo) payload.date_to = dateTo;
+
+  try {
+    const data = await fetchJson('/api/sync', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+
+    const periodo = dateFrom && dateTo ? ` (${dateFrom} a ${dateTo})` : dateFrom ? ` (a partir de ${dateFrom})` : dateTo ? ` (ate ${dateTo})` : '';
+    const msg = `${data.novas_lives} novas lives adicionadas${periodo}. ${data.ja_existentes} ja existiam.`;
+    document.getElementById('syncResult').textContent = msg;
+    showToast(msg);
+    await loadAll();
+  } catch (e) {
+    showToast('Erro ao sincronizar: ' + e.message, 'error');
+    document.getElementById('syncResult').textContent = 'Erro: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Sincronizar';
   }
 }
 
@@ -2111,9 +2191,10 @@ loadAll();
       <button onclick="closeModal('modalChangelog')" style="background:none;border:none;color:var(--muted);font-size:1.2em;cursor:pointer">X</button>
     </div>
     <div class="modal-body" style="padding:16px;overflow-y:auto;font-size:0.85em;line-height:1.8">
-      <h3 style="color:var(--accent);margin-bottom:8px">v3.6.8</h3>
+      <h3 style="color:var(--accent);margin-bottom:8px">v3.7.8</h3>
       <p style="color:var(--muted);margin-bottom:4px"><strong>Features:</strong></p>
       <ul style="margin:0 0 8px 20px;color:var(--text)">
+        <li>Sync rapido com 1 clique (sem filtros) + sync avancado separado</li>
         <li>Health bar - status do sistema (yt-dlp, Sheets, APIs, YouTube, Scheduler)</li>
         <li>Proximos horarios de corte/pub visiveis no dashboard</li>
         <li>Toggle "Link da live na descricao" nas configuracoes</li>
