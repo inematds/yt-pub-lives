@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>yt-pub-lives2 v3.3.0 - Lives & Clips Dashboard</title>
+<title>yt-pub-lives2 v3.3.1 - Lives & Clips Dashboard</title>
 <style>
   :root {
     --bg: #0f1117;
@@ -650,7 +650,7 @@
 
 <div class="container">
   <header>
-    <h1><span>GWS</span> Lives & Clips <small style="font-size:0.5em;color:var(--muted)">- yt-pub-lives2 v3.3.0</small>
+    <h1><span>GWS</span> Lives & Clips <small style="font-size:0.5em;color:var(--muted)">- yt-pub-lives2 v3.3.1</small>
       <span id="headerCanais" style="display:block;font-size:0.4em;font-weight:normal;margin-top:4px"></span>
     </h1>
     <div class="header-actions">
@@ -1669,9 +1669,16 @@ async function loadConfig() {
       `<a href="${c.canal_destino_url || '#'}" target="_blank" style="color:var(--green);text-decoration:none">${c.canal_destino_nome}</a>`;
   }
 
+  // Extrai minuto do primeiro horario (ex: "03:20,05:20" -> "20")
+  function extractMinute(horarios) {
+    if (!horarios) return '0';
+    const m = horarios.trim().match(/:(\d{2})/);
+    return m ? String(parseInt(m[1])) : '0';
+  }
+
   // Publicacao
   if (c.privacy_padrao) document.getElementById('cfgPrivacy').value = c.privacy_padrao;
-  document.getElementById('cfgPubMinuto').value = c.pub_minuto || '0';
+  document.getElementById('cfgPubMinuto').value = c.pub_minuto || extractMinute(c.pub_horarios);
   hourState.pub = stringToHours(c.pub_horarios || '08:00,11:00,14:00,17:00');
   buildHourPicker('pub');
 
@@ -1682,7 +1689,7 @@ async function loadConfig() {
   // Cortes
   if (c.corte_auto) document.getElementById('cfgCorteAuto').value = c.corte_auto;
   if (c.corte_max_por_dia) document.getElementById('cfgCorteMax').value = c.corte_max_por_dia;
-  document.getElementById('cfgCorteMinuto').value = c.corte_minuto || '0';
+  document.getElementById('cfgCorteMinuto').value = c.corte_minuto || extractMinute(c.corte_horarios);
   hourState.corte = stringToHours(c.corte_horarios || '06:00,18:00');
   buildHourPicker('corte');
 
