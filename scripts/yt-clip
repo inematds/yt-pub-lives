@@ -82,9 +82,15 @@ echo "==> [1/5] Baixando transcrição do YouTube..."
 if [[ -f "$JOB_DIR/transcript_raw.json3" ]]; then
   echo "    Transcrição já existe, pulando download"
 else
-  yt-dlp --cookies-from-browser firefox --remote-components ejs:github \
+  # Tenta com cookies primeiro, fallback sem cookies
+  if ! yt-dlp --cookies-from-browser firefox --remote-components ejs:github \
     --write-auto-sub --sub-lang pt --skip-download --sub-format json3 \
-    -o "$JOB_DIR/%(id)s" "https://www.youtube.com/watch?v=$VIDEO_ID" 2>/dev/null
+    -o "$JOB_DIR/%(id)s" "https://www.youtube.com/watch?v=$VIDEO_ID" 2>/dev/null; then
+    echo "    Falha com cookies, tentando sem cookies..."
+    yt-dlp --remote-components ejs:github \
+      --write-auto-sub --sub-lang pt --skip-download --sub-format json3 \
+      -o "$JOB_DIR/%(id)s" "https://www.youtube.com/watch?v=$VIDEO_ID" 2>/dev/null || true
+  fi
 
   # Rename to standard name
   mv "$JOB_DIR/${VIDEO_ID}.pt.json3" "$JOB_DIR/transcript_raw.json3" 2>/dev/null || true
@@ -432,11 +438,18 @@ echo "==> [4/5] Baixando vídeo e cortando clips..."
 # Download video if not exists
 if [[ ! -f "$JOB_DIR/source.mp4" ]]; then
   echo "    Baixando vídeo..."
-  yt-dlp --cookies-from-browser firefox --remote-components ejs:github \
+  if ! yt-dlp --cookies-from-browser firefox --remote-components ejs:github \
     -f "bestvideo[height<=1080]+bestaudio/best[height<=1080]" \
     --merge-output-format mp4 \
     -o "$JOB_DIR/source.mp4" \
-    "https://www.youtube.com/watch?v=$VIDEO_ID" 2>/dev/null
+    "https://www.youtube.com/watch?v=$VIDEO_ID" 2>/dev/null; then
+    echo "    Falha com cookies, tentando sem cookies..."
+    yt-dlp --remote-components ejs:github \
+      -f "bestvideo[height<=1080]+bestaudio/best[height<=1080]" \
+      --merge-output-format mp4 \
+      -o "$JOB_DIR/source.mp4" \
+      "https://www.youtube.com/watch?v=$VIDEO_ID" 2>/dev/null
+  fi
   echo "    Download completo"
 fi
 

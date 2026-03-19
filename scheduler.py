@@ -616,7 +616,7 @@ def _process_publicacao_inner(config):
         with open(manifest_file) as f:
             clips = json.load(f)
 
-        # Check which clips are already published (ignore erro_upload/publicando)
+        # Check which clips are already in the spreadsheet (any status = skip)
         pub_result = sheets_get('PUBLICADOS!A1:J1000')
         pub_rows = pub_result.get('values', [])
         published_titles = set()
@@ -632,6 +632,8 @@ def _process_publicacao_inner(config):
                         erro_titles.add(row[title_col])
                     else:
                         published_titles.add(row[title_col])
+        # Títulos que já estão na planilha (qualquer status) não devem ser re-publicados
+        all_known_titles = published_titles | erro_titles
 
         count = 0
         log(f'  {len(clips)} clips no manifest, {len(published_titles)} publicados OK, {len(erro_titles)} com erro (retry manual)')
@@ -640,12 +642,9 @@ def _process_publicacao_inner(config):
                 log(f'  Limite de {max_por_vez} clips por vez atingido')
                 break
 
-            if clip['title'] in published_titles:
-                log(f'  Ja publicado: {clip["title"][:50]}')
-                continue
-
-            if clip['title'] in erro_titles:
-                log(f'  Erro anterior (retry manual): {clip["title"][:50]}')
+            if clip['title'] in all_known_titles:
+                status = 'publicado' if clip['title'] in published_titles else 'erro/pendente'
+                log(f'  Ja na planilha ({status}): {clip["title"][:50]}')
                 continue
 
             if clip.get('paused', False):

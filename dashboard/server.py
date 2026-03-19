@@ -1262,18 +1262,6 @@ def parse_duration_minutes(iso_duration):
 if __name__ == '__main__':
     port = int(sys.argv[1]) if len(sys.argv) > 1 else PORT
 
-    # Start scheduler in background thread
-    import threading
-    scheduler_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
-    sys.path.insert(0, scheduler_dir)
-    try:
-        from scheduler import main as scheduler_main
-        t = threading.Thread(target=scheduler_main, daemon=True, name='scheduler')
-        t.start()
-        print(f'Scheduler iniciado em background thread', file=sys.stderr)
-    except Exception as e:
-        print(f'ERRO ao iniciar scheduler: {e}', file=sys.stderr)
-
     class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
         daemon_threads = True
 
