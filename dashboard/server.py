@@ -262,28 +262,23 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         except Exception as e:
             checks['sheets'] = {'ok': False, 'detail': str(e)}
 
-        # Piramyd API (IA cortes/pub)
+        # Claude CLI (IA cortes/pub)
         try:
-            env_file = os.path.join(CONFIG_DIR, '.env')
-            api_key = ''
-            if os.path.exists(env_file):
-                with open(env_file) as f:
-                    for line in f:
-                        if line.startswith('PIRAMYD_API_KEY='):
-                            api_key = line.split('=', 1)[1].strip()
-            if not api_key:
-                api_key = os.environ.get('PIRAMYD_API_KEY', '')
-            if api_key:
-                payload = json.dumps({'model': 'claude-sonnet-4.5', 'messages': [{'role': 'user', 'content': 'ok'}], 'max_tokens': 5}).encode()
-                req = urllib.request.Request('https://api.piramyd.cloud/v1/chat/completions', data=payload)
-                req.add_header('Content-Type', 'application/json')
-                req.add_header('Authorization', f'Bearer {api_key}')
-                urllib.request.urlopen(req, timeout=15)
-                checks['api_ia'] = {'ok': True, 'detail': 'ok'}
-            else:
-                checks['api_ia'] = {'ok': False, 'detail': 'sem api key'}
+            r = subprocess.run(['claude', '-p', '--output-format', 'json', 'diga ok'], capture_output=True, text=True, timeout=30)
+            checks['api_ia'] = {'ok': r.returncode == 0, 'detail': 'Claude CLI ok' if r.returncode == 0 else f'erro code {r.returncode}'}
         except Exception as e:
             checks['api_ia'] = {'ok': False, 'detail': str(e)[:80]}
+
+        # Piramyd API key (para thumbnail)
+        env_file = os.path.join(CONFIG_DIR, '.env')
+        api_key = ''
+        if os.path.exists(env_file):
+            with open(env_file) as f:
+                for line in f:
+                    if line.startswith('PIRAMYD_API_KEY='):
+                        api_key = line.split('=', 1)[1].strip()
+        if not api_key:
+            api_key = os.environ.get('PIRAMYD_API_KEY', '')
 
         # Thumbnail API
         try:
