@@ -18,14 +18,13 @@ import threading
 from datetime import datetime
 
 # Config
-CONFIG_DIR = os.environ.get('GWS_CONFIG_DIR', os.path.expanduser('~/.config/gws'))
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+CONFIG_DIR = os.environ.get('GWS_CONFIG_DIR', os.path.join(PROJECT_ROOT, 'config'))
 ENV_FILE = os.path.join(CONFIG_DIR, '.env')
-SPREADSHEET_ID = os.environ.get('SPREADSHEET_ID', '1KG6sp77DeelQ6RTqzMZN2INXHJWxuUFtOUI3dOf7Ivs')
 SCRIPTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'scripts')
-LIVES_DIR = os.environ.get('LIVES_DIR', os.path.expanduser('~/projetos/gws/lives'))
 STATUS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dashboard', 'scheduler_status.json')
 
-# Load env
+# Load env (before reading env-dependent vars)
 if os.path.exists(ENV_FILE):
     with open(ENV_FILE) as f:
         for line in f:
@@ -33,6 +32,9 @@ if os.path.exists(ENV_FILE):
             if line and not line.startswith('#') and '=' in line:
                 key, val = line.split('=', 1)
                 os.environ[key] = val
+
+SPREADSHEET_ID = os.environ.get('SPREADSHEET_ID', '')
+LIVES_DIR = os.environ.get('LIVES_DIR', os.path.join(PROJECT_ROOT, 'lives'))
 
 
 def log(msg):
@@ -78,7 +80,7 @@ def get_access_token():
     }).encode()
 
     req = urllib.request.Request('https://oauth2.googleapis.com/token', data=token_data)
-    resp = json.loads(urllib.request.urlopen(req, timeout=30).read())
+    resp = json.loads(urllib.request.urlopen(req).read())
     return resp['access_token']
 
 
@@ -89,12 +91,10 @@ def sheets_get(range_str):
     req = urllib.request.Request(url)
     req.add_header('Authorization', f'Bearer {token}')
     try:
-        resp = urllib.request.urlopen(req, timeout=30)
+        resp = urllib.request.urlopen(req)
         return json.loads(resp.read())
     except urllib.error.HTTPError as e:
         return {'error': e.read().decode(), 'status': e.code}
-    except (urllib.error.URLError, TimeoutError) as e:
-        return {'error': str(e), 'status': 0}
 
 
 def sheets_update(range_str, values):
@@ -106,12 +106,10 @@ def sheets_update(range_str, values):
     req.add_header('Authorization', f'Bearer {token}')
     req.add_header('Content-Type', 'application/json')
     try:
-        resp = urllib.request.urlopen(req, timeout=30)
+        resp = urllib.request.urlopen(req)
         return json.loads(resp.read())
     except urllib.error.HTTPError as e:
         return {'error': e.read().decode()}
-    except (urllib.error.URLError, TimeoutError) as e:
-        return {'error': str(e)}
 
 
 def load_config():
@@ -241,7 +239,7 @@ def run_corte(video_id, config=None):
 
 
 def refine_pub_with_ai(title, description, config, video_id=''):
-    """Usa IA para refinar titulo e descricao antes de publicar."""
+    """Usa Claude CLI (OAuth) para refinar titulo e descricao antes de publicar."""
     prompt_file = os.path.join(CONFIG_DIR, 'prompt_pub.txt')
     if not os.path.exists(prompt_file):
         return title, description
@@ -251,37 +249,23 @@ def refine_pub_with_ai(title, description, config, video_id=''):
     if not system_prompt:
         return title, description
 
-    # Determine API endpoint and key
-    api_key = config.get('thumb_api_key', '') or os.environ.get('PIRAMYD_API_KEY', '')
-    if not api_key:
-        log('  Sem API key para refinar publicacao, usando titulo/descricao originais')
-        return title, description
-
-    api_url = 'https://api.piramyd.cloud/v1/chat/completions'
-    ai_model = config.get('ai_model', '') or 'claude-sonnet-4.5'
-
     user_msg = f'Titulo original: "{title}"\nDescricao original: "{description}"\nVideo ID da live original: {video_id}'
-
-    payload = {
-        'model': ai_model,
-        'messages': [
-            {'role': 'system', 'content': system_prompt},
-            {'role': 'user', 'content': user_msg}
-        ],
-        'temperature': 0.7,
-        'max_tokens': 500
-    }
+    full_prompt = f'{system_prompt}\n\n---\n\n{user_msg}'
 
     try:
-        log(f'  Refinando titulo/descricao com IA ({ai_model})...')
-        body = json.dumps(payload).encode()
-        req = urllib.request.Request(api_url, data=body)
-        req.add_header('Content-Type', 'application/json')
-        req.add_header('Authorization', f'Bearer {api_key}')
+        log(f'  Refinando titulo/descricao com Claude CLI...')
+        env = os.environ.copy()
+        env.pop('CLAUDECODE', None)
+        result = subprocess.run(
+            ['claude', '-p', '--output-format', 'json', full_prompt],
+            capture_output=True, text=True, timeout=120, env=env
+        )
+        if result.returncode != 0:
+            log(f'  Claude CLI erro (code {result.returncode}): {result.stderr[:200]}, usando originais')
+            return title, description
 
-        resp = urllib.request.urlopen(req, timeout=60)
-        result = json.loads(resp.read())
-        content = result['choices'][0]['message']['content']
+        data = json.loads(result.stdout)
+        content = data.get('result', '')
 
         import re
         json_match = re.search(r'\{[\s\S]*\}', content)
@@ -618,7 +602,7 @@ def _process_publicacao_inner(config):
         with open(manifest_file) as f:
             clips = json.load(f)
 
-        # Check which clips are already published (ignore erro_upload/publicando)
+        # Check which clips are already in the spreadsheet (any status = skip)
         pub_result = sheets_get('PUBLICADOS!A1:J1000')
         pub_rows = pub_result.get('values', [])
         published_titles = set()
@@ -634,6 +618,8 @@ def _process_publicacao_inner(config):
                         erro_titles.add(row[title_col])
                     else:
                         published_titles.add(row[title_col])
+        # Títulos que já estão na planilha (qualquer status) não devem ser re-publicados
+        all_known_titles = published_titles | erro_titles
 
         count = 0
         log(f'  {len(clips)} clips no manifest, {len(published_titles)} publicados OK, {len(erro_titles)} com erro (retry manual)')
@@ -642,12 +628,9 @@ def _process_publicacao_inner(config):
                 log(f'  Limite de {max_por_vez} clips por vez atingido')
                 break
 
-            if clip['title'] in published_titles:
-                log(f'  Ja publicado: {clip["title"][:50]}')
-                continue
-
-            if clip['title'] in erro_titles:
-                log(f'  Erro anterior (retry manual): {clip["title"][:50]}')
+            if clip['title'] in all_known_titles:
+                status = 'publicado' if clip['title'] in published_titles else 'erro/pendente'
+                log(f'  Ja na planilha ({status}): {clip["title"][:50]}')
                 continue
 
             if clip.get('paused', False):
@@ -747,6 +730,7 @@ def _process_publicacao_inner(config):
                     lock_match = _re.search(r'!A(\d+)', lock_range)
                     if lock_match:
                         lock_row = int(lock_match.group(1))
+                        # Limpar a linha (marcar como erro)
                         err_range = f'PUBLICADOS!A{lock_row}'
                         err_token = get_access_token()
                         err_encoded = urllib.parse.quote(err_range)
@@ -858,7 +842,7 @@ def main():
                     last_executed['sync'] = '00:00'
                     log('==> Auto-sync: sincronizando lives do canal de origem...')
                     try:
-                        dashboard_port = config.get('dashboard_port', '8090')
+                        dashboard_port = config.get('dashboard_port', '8091')
                         payload = json.dumps({'mode': 'novas', 'max_lives': 1000}).encode()
                         req = urllib.request.Request(
                             f'http://localhost:{dashboard_port}/api/sync',
@@ -889,7 +873,7 @@ def acquire_lock():
         fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
         lock_file.write(str(os.getpid()))
         lock_file.flush()
-        return lock_file
+        return lock_file  # manter aberto enquanto o processo roda
     except OSError:
         print(f'[ERRO] Outro scheduler ja esta rodando (lock: {lock_path}). Saindo.', file=sys.stderr)
         sys.exit(1)

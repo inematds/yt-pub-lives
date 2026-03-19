@@ -15,12 +15,12 @@ from socketserver import ThreadingMixIn
 from pathlib import Path
 
 # Config
-CONFIG_DIR = os.environ.get('GWS_CONFIG_DIR', os.path.expanduser('~/.config/gws'))
+PROJECT_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
+CONFIG_DIR = os.environ.get('GWS_CONFIG_DIR', os.path.join(PROJECT_ROOT, 'config'))
 ENV_FILE = os.path.join(CONFIG_DIR, '.env')
-SPREADSHEET_ID = '1KG6sp77DeelQ6RTqzMZN2INXHJWxuUFtOUI3dOf7Ivs'
-PORT = 8090
+PORT = 8091
 
-# Load env
+# Load env (before reading env-dependent vars)
 if os.path.exists(ENV_FILE):
     with open(ENV_FILE) as f:
         for line in f:
@@ -28,6 +28,8 @@ if os.path.exists(ENV_FILE):
             if line and not line.startswith('#') and '=' in line:
                 key, val = line.split('=', 1)
                 os.environ[key] = val
+
+SPREADSHEET_ID = os.environ.get('SPREADSHEET_ID', '')
 
 
 def get_access_token():
@@ -51,7 +53,7 @@ def get_access_token():
     }).encode()
 
     req = urllib.request.Request('https://oauth2.googleapis.com/token', data=token_data)
-    resp = json.loads(urllib.request.urlopen(req, timeout=30).read())
+    resp = json.loads(urllib.request.urlopen(req).read())
     return resp['access_token']
 
 
@@ -70,13 +72,11 @@ def sheets_api(method, endpoint, body=None):
     req.add_header('Authorization', f'Bearer {token}')
 
     try:
-        resp = urllib.request.urlopen(req, timeout=30)
+        resp = urllib.request.urlopen(req)
         return json.loads(resp.read())
     except urllib.error.HTTPError as e:
         error_body = e.read().decode()
         return {'error': error_body, 'status': e.code}
-    except (urllib.error.URLError, TimeoutError) as e:
-        return {'error': str(e), 'status': 0}
 
 
 def sheets_get(range_str):
@@ -123,16 +123,14 @@ def youtube_api(endpoint, params=None):
     req.add_header('Authorization', f'Bearer {token}')
 
     try:
-        resp = urllib.request.urlopen(req, timeout=30)
+        resp = urllib.request.urlopen(req)
         return json.loads(resp.read())
     except urllib.error.HTTPError as e:
         error_body = e.read().decode()
         return {'error': error_body, 'status': e.code}
-    except (urllib.error.URLError, TimeoutError) as e:
-        return {'error': str(e), 'status': 0}
 
 
-def get_channel_lives(channel_id, page_token=None):
+def get_channel_lives(channel_id, page_token=None, published_after=None, published_before=None):
     """Get live streams from channel using search API."""
     params = {
         'channelId': channel_id,
@@ -144,6 +142,10 @@ def get_channel_lives(channel_id, page_token=None):
     }
     if page_token:
         params['pageToken'] = page_token
+    if published_after:
+        params['publishedAfter'] = published_after
+    if published_before:
+        params['publishedBefore'] = published_before
     return youtube_api('search', params)
 
 
@@ -215,14 +217,14 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.handle_live_reprocess(data)
         elif post_path == '/api/clip/pause':
             self.handle_clip_pause(data)
+        elif post_path == '/api/clip/delete-pending':
+            self.handle_clip_delete_pending(data)
         elif post_path == '/api/prompts':
             self.handle_api_prompts_save(data)
         elif post_path == '/api/cleanup/clips':
             self.handle_cleanup_clips(data)
         elif post_path == '/api/cleanup/sources':
             self.handle_cleanup_sources(data)
-        elif post_path == '/api/clip/delete-pending':
-            self.handle_clip_delete_pending(data)
         elif post_path == '/api/live/delete':
             self.handle_live_delete(data)
         elif post_path == '/api/thumbs/upload':
@@ -260,28 +262,23 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         except Exception as e:
             checks['sheets'] = {'ok': False, 'detail': str(e)}
 
-        # Piramyd API (IA cortes/pub)
+        # Claude CLI (IA cortes/pub)
         try:
-            env_file = os.path.join(CONFIG_DIR, '.env')
-            api_key = ''
-            if os.path.exists(env_file):
-                with open(env_file) as f:
-                    for line in f:
-                        if line.startswith('PIRAMYD_API_KEY='):
-                            api_key = line.split('=', 1)[1].strip()
-            if not api_key:
-                api_key = os.environ.get('PIRAMYD_API_KEY', '')
-            if api_key:
-                payload = json.dumps({'model': 'claude-sonnet-4.5', 'messages': [{'role': 'user', 'content': 'ok'}], 'max_tokens': 5}).encode()
-                req = urllib.request.Request('https://api.piramyd.cloud/v1/chat/completions', data=payload)
-                req.add_header('Content-Type', 'application/json')
-                req.add_header('Authorization', f'Bearer {api_key}')
-                urllib.request.urlopen(req, timeout=15)
-                checks['api_ia'] = {'ok': True, 'detail': 'ok'}
-            else:
-                checks['api_ia'] = {'ok': False, 'detail': 'sem api key'}
+            r = subprocess.run(['claude', '-p', '--output-format', 'json', 'diga ok'], capture_output=True, text=True, timeout=30)
+            checks['api_ia'] = {'ok': r.returncode == 0, 'detail': 'Claude CLI ok' if r.returncode == 0 else f'erro code {r.returncode}'}
         except Exception as e:
             checks['api_ia'] = {'ok': False, 'detail': str(e)[:80]}
+
+        # Piramyd API key (para thumbnail)
+        env_file = os.path.join(CONFIG_DIR, '.env')
+        api_key = ''
+        if os.path.exists(env_file):
+            with open(env_file) as f:
+                for line in f:
+                    if line.startswith('PIRAMYD_API_KEY='):
+                        api_key = line.split('=', 1)[1].strip()
+        if not api_key:
+            api_key = os.environ.get('PIRAMYD_API_KEY', '')
 
         # Thumbnail API
         try:
@@ -343,7 +340,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if '..' in video_id or '..' in filename or '/' in filename:
             self.send_json(400, {'error': 'invalid path'})
             return
-        lives_dir = os.environ.get('LIVES_DIR', os.path.expanduser('~/projetos/gws/lives'))
+        lives_dir = os.environ.get('LIVES_DIR', os.path.join(PROJECT_ROOT, 'lives'))
         filepath = os.path.join(lives_dir, video_id, 'clips', filename)
         if not os.path.exists(filepath):
             self.send_json(404, {'error': 'file not found'})
@@ -398,23 +395,21 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     def handle_api_publicados(self, filter_live_id=None):
         result = sheets_get('PUBLICADOS!A1:J1000')
         rows = result.get('values', [])
-        if len(rows) < 2:
-            self.send_json(200, {'publicados': [], 'headers': rows[0] if rows else []})
-            return
 
-        headers = rows[0]
+        headers = rows[0] if rows else []
         publicados = []
-        live_col = headers.index('live_video_id') if 'live_video_id' in headers else 3
-        for row in rows[1:]:
-            pub = {}
-            for i, h in enumerate(headers):
-                pub[h] = row[i] if i < len(row) else ''
-            if filter_live_id and pub.get('live_video_id', '') != filter_live_id:
-                continue
-            publicados.append(pub)
+        if len(rows) >= 2:
+            live_col = headers.index('live_video_id') if 'live_video_id' in headers else 3
+            for row in rows[1:]:
+                pub = {}
+                for i, h in enumerate(headers):
+                    pub[h] = row[i] if i < len(row) else ''
+                if filter_live_id and pub.get('live_video_id', '') != filter_live_id:
+                    continue
+                publicados.append(pub)
 
         # Enrich publicados with filename from manifest
-        lives_dir = os.environ.get('LIVES_DIR', os.path.expanduser('~/projetos/gws/lives'))
+        lives_dir = os.environ.get('LIVES_DIR', os.path.join(PROJECT_ROOT, 'lives'))
         manifests_cache = {}
         for pub in publicados:
             lid = pub.get('live_video_id', '')
@@ -432,7 +427,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
         # Incluir clips pendentes (cortados mas nao publicados)
         pendentes = []
-        lives_dir = os.environ.get('LIVES_DIR', os.path.expanduser('~/projetos/gws/lives'))
+        lives_dir = os.environ.get('LIVES_DIR', os.path.join(PROJECT_ROOT, 'lives'))
         pub_titles = set(p.get('clip_titulo', '') for p in publicados)
 
         live_ids = [filter_live_id] if filter_live_id else []
@@ -484,7 +479,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_json(400, {'error': 'id parameter required'})
             return
 
-        lives_dir = os.environ.get('LIVES_DIR', os.path.expanduser('~/projetos/gws/lives'))
+        lives_dir = os.environ.get('LIVES_DIR', os.path.join(PROJECT_ROOT, 'lives'))
         job_dir = os.path.join(lives_dir, video_id)
 
         result = {'video_id': video_id, 'has_transcript': False, 'has_topics': False}
@@ -517,7 +512,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.send_json(200, {'config': config})
 
     def handle_api_prompts_get(self):
-        config_dir = os.environ.get('GWS_CONFIG_DIR', os.path.expanduser('~/.config/gws'))
+        config_dir = os.environ.get('GWS_CONFIG_DIR', os.path.join(PROJECT_ROOT, 'config'))
         prompts = {}
         for name in ('prompt_cortes', 'prompt_pub', 'prompt_thumb'):
             path = os.path.join(config_dir, f'{name}.txt')
@@ -529,7 +524,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.send_json(200, {'prompts': prompts})
 
     def handle_api_prompts_save(self, data):
-        config_dir = os.environ.get('GWS_CONFIG_DIR', os.path.expanduser('~/.config/gws'))
+        config_dir = os.environ.get('GWS_CONFIG_DIR', os.path.join(PROJECT_ROOT, 'config'))
         saved = []
         for name in ('prompt_cortes', 'prompt_pub', 'prompt_thumb'):
             if name in data:
@@ -560,6 +555,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 pendentes += 1
 
         self.send_json(200, {
+            'instance_name': os.environ.get('INSTANCE_NAME', 'yt-pub-lives'),
             'total_lives': total_lives,
             'total_publicados': total_publicados,
             'lives_cortadas': cortados,
@@ -567,8 +563,23 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         })
 
     def handle_sync(self, data):
-        """Sync lives from YouTube channel."""
-        channel_id = os.environ.get('YOUTUBE_CHANNEL_ID', 'UC2QbQDyPKuHk93dwo5iq3Sw')
+        """Sync lives from YouTube channel.
+        Options:
+          mode: 'novas' (only new, skip existing) | 'todas' (all in date range)
+          date_from: 'YYYY-MM-DD' (optional)
+          date_to: 'YYYY-MM-DD' (optional)
+          max_pages: int (default 10)
+        """
+        channel_id = os.environ.get('YOUTUBE_CHANNEL_ID', '')
+        mode = data.get('mode', 'novas')
+        date_from = data.get('date_from', '')
+        date_to = data.get('date_to', '')
+        max_lives = data.get('max_lives', 50)
+        max_pages = (max_lives // 50) + 1
+
+        # Build date filters for YouTube API (ISO 8601)
+        published_after = f'{date_from}T00:00:00Z' if date_from else None
+        published_before = f'{date_to}T23:59:59Z' if date_to else None
 
         # Get existing video IDs from sheet
         existing_result = sheets_get('LIVES!A2:A1000')
@@ -580,10 +591,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         # Fetch lives from YouTube
         all_lives = []
         page_token = None
-        max_pages = data.get('max_pages', 3)  # limit pages to avoid quota
 
         for _ in range(max_pages):
-            result = get_channel_lives(channel_id, page_token)
+            result = get_channel_lives(channel_id, page_token, published_after, published_before)
             if 'error' in result:
                 self.send_json(500, {'error': result['error']})
                 return
@@ -591,18 +601,24 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             items = result.get('items', [])
             for item in items:
                 vid = item['id'].get('videoId', '')
-                if vid and vid not in existing_ids:
-                    snippet = item.get('snippet', {})
-                    all_lives.append({
-                        'video_id': vid,
-                        'titulo': snippet.get('title', ''),
-                        'data_live': snippet.get('publishedAt', '')[:10],
-                        'url': f'https://www.youtube.com/watch?v={vid}'
-                    })
+                if not vid:
+                    continue
+                if mode == 'novas' and vid in existing_ids:
+                    continue
+                snippet = item.get('snippet', {})
+                all_lives.append({
+                    'video_id': vid,
+                    'titulo': snippet.get('title', ''),
+                    'data_live': snippet.get('publishedAt', '')[:10],
+                    'url': f'https://www.youtube.com/watch?v={vid}'
+                })
 
             page_token = result.get('nextPageToken')
             if not page_token:
                 break
+
+        # Filter out duplicates and limit
+        all_lives = [l for l in all_lives if l['video_id'] not in existing_ids][:max_lives]
 
         # Get durations for new videos
         if all_lives:
@@ -648,6 +664,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.send_json(200, {
             'novas_lives': len(all_lives),
             'ja_existentes': len(existing_ids),
+            'mode': mode,
+            'date_from': date_from,
+            'date_to': date_to,
             'lives': all_lives
         })
 
@@ -837,7 +856,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_json(400, {'error': 'live_video_id and title required'})
             return
 
-        lives_dir = os.environ.get('LIVES_DIR', os.path.expanduser('~/projetos/gws/lives'))
+        lives_dir = os.environ.get('LIVES_DIR', os.path.join(PROJECT_ROOT, 'lives'))
         manifest_path = os.path.join(lives_dir, live_id, 'clips_manifest.json')
         if not os.path.exists(manifest_path):
             self.send_json(404, {'error': 'manifest not found'})
@@ -862,32 +881,38 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_json(404, {'error': 'clip not found in manifest'})
 
     def handle_clip_delete_pending(self, data):
-        """Delete a pending clip from clips_manifest.json."""
+        """Remove a pending clip from clips_manifest.json."""
         live_id = data.get('live_video_id', '')
         title = data.get('title', '')
         if not live_id or not title:
             self.send_json(400, {'error': 'live_video_id and title required'})
             return
-        lives_dir = os.environ.get('LIVES_DIR', os.path.expanduser('~/projetos/gws/lives'))
+
+        lives_dir = os.environ.get('LIVES_DIR', os.path.join(PROJECT_ROOT, 'lives'))
         manifest_path = os.path.join(lives_dir, live_id, 'clips_manifest.json')
         if not os.path.exists(manifest_path):
             self.send_json(404, {'error': 'manifest not found'})
             return
+
         with open(manifest_path) as f:
             clips = json.load(f)
+
         original_len = len(clips)
         clips = [c for c in clips if c.get('title', '') != title]
+
         if len(clips) == original_len:
             self.send_json(404, {'error': 'clip not found in manifest'})
             return
+
         with open(manifest_path, 'w') as f:
             json.dump(clips, f, ensure_ascii=False, indent=2)
+
         self.send_json(200, {'ok': True, 'removed': original_len - len(clips)})
 
     def handle_cleanup_clips(self, data):
         """Deleta arquivos mp4 dos clips do disco. Mantem manifest e planilha."""
         video_id = data.get('video_id', '')  # opcional: limpar só uma live
-        lives_dir = os.environ.get('LIVES_DIR', os.path.expanduser('~/projetos/gws/lives'))
+        lives_dir = os.environ.get('LIVES_DIR', os.path.join(PROJECT_ROOT, 'lives'))
         deleted = 0
         freed = 0
 
@@ -914,7 +939,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     def handle_cleanup_sources(self, data):
         """Deleta arquivos source.mp4 (videos originais) do disco. Mantem clips e manifest."""
         video_id = data.get('video_id', '')  # opcional: limpar só uma live
-        lives_dir = os.environ.get('LIVES_DIR', os.path.expanduser('~/projetos/gws/lives'))
+        lives_dir = os.environ.get('LIVES_DIR', os.path.join(PROJECT_ROOT, 'lives'))
         deleted = 0
         freed = 0
 
@@ -988,7 +1013,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             return
 
         # Remove arquivos do disco
-        lives_dir = os.environ.get('LIVES_DIR', os.path.expanduser('~/projetos/gws/lives'))
+        lives_dir = os.environ.get('LIVES_DIR', os.path.join(PROJECT_ROOT, 'lives'))
         job_dir = os.path.join(lives_dir, video_id)
         freed = 0
         if os.path.exists(job_dir):
@@ -1232,18 +1257,6 @@ def parse_duration_minutes(iso_duration):
 
 if __name__ == '__main__':
     port = int(sys.argv[1]) if len(sys.argv) > 1 else PORT
-
-    # Start scheduler in background thread
-    import threading
-    scheduler_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
-    sys.path.insert(0, scheduler_dir)
-    try:
-        from scheduler import main as scheduler_main
-        t = threading.Thread(target=scheduler_main, daemon=True, name='scheduler')
-        t.start()
-        print(f'Scheduler iniciado em background thread', file=sys.stderr)
-    except Exception as e:
-        print(f'ERRO ao iniciar scheduler: {e}', file=sys.stderr)
 
     class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
         daemon_threads = True

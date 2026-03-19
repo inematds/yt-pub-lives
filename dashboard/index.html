@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>yt-pub-lives v3.9.14 - Lives & Clips Dashboard</title>
+<title>Lives & Clips Dashboard</title>
 <style>
   :root {
     --bg: #0f1117;
@@ -319,9 +319,31 @@
     color: var(--accent);
     transition: all 0.2s;
     user-select: none;
+    position: relative;
+    display: inline-block;
   }
   .privacy-toggle:hover { background: rgba(99,102,241,0.25); }
   .privacy-toggle.saving { opacity: 0.5; pointer-events: none; }
+
+  .privacy-dropdown {
+    z-index: 9999;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    overflow: hidden;
+    min-width: 100px;
+    margin-top: 4px;
+  }
+  .privacy-dropdown div {
+    padding: 6px 12px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .privacy-dropdown div:hover { background: rgba(99,102,241,0.15); }
+  .privacy-dropdown div.active { color: var(--accent); font-weight: 600; }
 
   /* Toolbar filters */
   .toolbar {
@@ -386,25 +408,6 @@
     color: var(--red) !important;
     border-color: var(--red) !important;
   }
-
-  .privacy-dropdown {
-    z-index: 9999;
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-    min-width: 100px;
-    overflow: hidden;
-  }
-  .privacy-dropdown div {
-    padding: 6px 14px;
-    font-size: 0.8rem;
-    cursor: pointer;
-    color: var(--text);
-    transition: background 0.15s;
-  }
-  .privacy-dropdown div:hover { background: rgba(99,102,241,0.15); }
-  .privacy-dropdown div.active { background: rgba(99,102,241,0.25); color: var(--accent); font-weight: 600; }
 
   /* Modal */
   .modal-overlay {
@@ -669,7 +672,9 @@
 
 <div class="container">
   <header>
-    <h1><span>GWS</span> Lives & Clips <small style="font-size:0.5em;color:var(--muted)">- yt-pub-lives <a href="#" onclick="openModal('modalChangelog');return false" style="color:var(--accent);text-decoration:none" title="Ver changelog">v3.9.14</a></small></h1>
+    <h1><span>GWS</span> Lives & Clips <small style="font-size:0.5em;color:var(--muted)">- <span id="instanceName"></span> <a href="#" onclick="openModal('modalChangelog');return false" style="color:var(--accent);text-decoration:none" title="Ver changelog">v3.9.15</a></small>
+      <span id="headerCanais" style="display:block;font-size:0.4em;font-weight:normal;margin-top:4px"></span>
+    </h1>
     <div class="header-actions">
       <button id="btnCortes" onclick="togglePipeline('cortes')" class="danger small">Parar Cortes</button>
       <button id="btnPub" onclick="togglePipeline('pub')" class="danger small">Parar Publicacao</button>
@@ -776,6 +781,21 @@
 
   <!-- Config Panel -->
   <div class="config-panel" id="configPanel">
+
+    <!-- Canais -->
+    <div class="config-section">
+      <h3>Canais</h3>
+      <div class="config-grid" style="grid-template-columns: 1fr 1fr;">
+        <div class="config-field">
+          <label>Canal de Origem (lives)</label>
+          <div id="cfgCanalOrigem" style="padding:8px 0;color:var(--text)">-</div>
+        </div>
+        <div class="config-field">
+          <label>Canal de Destino (clips)</label>
+          <div id="cfgCanalDestino" style="padding:8px 0;color:var(--text)">-</div>
+        </div>
+      </div>
+    </div>
 
     <!-- Corte / Producao (em cima) -->
     <div class="config-section">
@@ -1414,6 +1434,11 @@ function escapeHtml(text) {
 // --- Load data ---
 async function loadStats() {
   const data = await fetchJson('/api/stats');
+  const inst = document.getElementById('instanceName');
+  if (inst && data.instance_name) {
+    inst.textContent = data.instance_name;
+    document.title = data.instance_name + ' - Lives & Clips Dashboard';
+  }
   document.getElementById('statLives').textContent = data.total_lives;
   document.getElementById('statCortadas').textContent = data.lives_cortadas;
   document.getElementById('statPendentes').textContent = data.lives_pendentes;
@@ -1695,13 +1720,21 @@ function filterPubs() {
       </tr>`;
     } else if (p._status === 'publicado') {
       const hasValidUrl = p.clip_url && p.clip_url.startsWith('http');
-      const pubLink = hasValidUrl ? `<a href="${p.clip_url}" target="_blank" style="color:var(--blue);font-size:0.75em" title="${p.clip_url}">&#128279; abrir</a>` : '<span style="color:var(--muted);font-size:0.75em">-</span>';
+      const statusBadge = hasValidUrl
+        ? `<a href="${p.clip_url}" target="_blank"><span class="badge concluido">publicado</span></a>`
+        : `<span class="badge pendente" title="Sem link de publicacao valido">sem link</span>`;
+      const pubLink = hasValidUrl
+        ? `<a href="${p.clip_url}" target="_blank" style="color:var(--blue);font-size:0.75em" title="${p.clip_url}">&#128279; abrir</a>`
+        : `<span style="color:var(--muted);font-size:0.75em">-</span>`;
       return `<tr>
-        <td><a href="${p.clip_url}" target="_blank"><span class="badge concluido">publicado</span></a></td>
+        <td>${statusBadge}</td>
         <td title="${escapeHtml(p.clip_titulo)}">${escapeHtml(p.clip_titulo)}</td>
         <td><a href="javascript:void(0)" onclick="goToLive('${p.live_video_id}')">${p.live_video_id}</a></td>
         <td>${p.data_publicacao}</td>
-        <td><span class="privacy-toggle" onclick="showPrivacyDropdown(this, '${p.clip_video_id}')" title="Clique para mudar">${p.privacy}</span> <button class="small btn-delete" style="opacity:1" onclick="deleteClip('${p.clip_video_id}', '${escapeHtml(p.clip_titulo).replace(/'/g,"\\'")}', this)" title="Excluir clip">x</button></td>
+        <td>
+          <span class="privacy-toggle" onclick="showPrivacyDropdown(this, '${p.clip_video_id}')" title="Clique para mudar">${p.privacy}</span>
+          <button class="small btn-delete" onclick="deleteClip('${p.clip_video_id}', '${escapeHtml(p.clip_titulo).replace(/'/g,"\\'")}', this)" title="Excluir clip" style="opacity:1">x</button>
+        </td>
         <td>${pubLink}</td>
         <td>${fileLink}</td>
         <td>${p.tags || '-'}</td>
@@ -1715,7 +1748,10 @@ function filterPubs() {
         <td title="${escapeHtml(p.title)}">${escapeHtml(p.title)}</td>
         <td><a href="javascript:void(0)" onclick="goToLive('${p.live_video_id}')">${p.live_video_id}</a></td>
         <td>${p.start} → ${p.end}</td>
-        <td>- <button class="small btn-delete" style="opacity:1" onclick="deletePendingClip('${p.live_video_id}', '${escapeHtml(p.title).replace(/'/g,"\\'")}', this)" title="Excluir clip pendente">x</button></td>
+        <td>
+          <span style="color:var(--muted);font-size:0.75em">-</span>
+          <button class="small btn-delete" onclick="deletePendingClip('${p.live_video_id}', '${escapeHtml(p.title).replace(/'/g,"\\'")}', this)" title="Excluir clip pendente" style="opacity:1">x</button>
+        </td>
         <td><span style="color:var(--muted);font-size:0.75em">-</span></td>
         <td>${fileLink}</td>
         <td>${p._tags || '-'}</td>
@@ -1727,6 +1763,23 @@ function filterPubs() {
 async function loadConfig() {
   const data = await fetchJson('/api/config');
   const c = data.config;
+
+  // Canais
+  if (c.canal_origem_nome) {
+    const origemEl = document.getElementById('cfgCanalOrigem');
+    origemEl.innerHTML = `<a href="${c.canal_origem_url || '#'}" target="_blank" style="color:var(--blue);text-decoration:none">${c.canal_origem_nome}</a> <span style="color:var(--muted);font-size:0.85em">(${c.canal_origem_id || ''})</span>`;
+  }
+  if (c.canal_destino_nome) {
+    const destinoEl = document.getElementById('cfgCanalDestino');
+    destinoEl.innerHTML = `<a href="${c.canal_destino_url || '#'}" target="_blank" style="color:var(--green);text-decoration:none">${c.canal_destino_nome}</a> <span style="color:var(--muted);font-size:0.85em">(${c.canal_destino_id || ''})</span>`;
+  }
+  // Header canais
+  if (c.canal_origem_nome && c.canal_destino_nome) {
+    document.getElementById('headerCanais').innerHTML =
+      `<a href="${c.canal_origem_url || '#'}" target="_blank" style="color:var(--blue);text-decoration:none">${c.canal_origem_nome}</a>` +
+      ` <span style="color:var(--muted)">→</span> ` +
+      `<a href="${c.canal_destino_url || '#'}" target="_blank" style="color:var(--green);text-decoration:none">${c.canal_destino_nome}</a>`;
+  }
 
   // Extrai minuto do primeiro horario (ex: "03:20,05:20" -> "20")
   function extractMinute(horarios) {
@@ -1846,14 +1899,14 @@ async function saveConfig() {
 
   const data = {
     pub_horarios: hoursToString('pub'),
-    pub_minuto: document.getElementById('cfgPubMinuto').value,
     privacy_padrao: document.getElementById('cfgPrivacy').value,
     corte_auto: document.getElementById('cfgCorteAuto').value,
     corte_horarios: hoursToString('corte'),
-    corte_minuto: document.getElementById('cfgCorteMinuto').value,
     corte_max_por_dia: document.getElementById('cfgCorteMax').value,
     pub_max_por_vez: document.getElementById('cfgPubMax').value,
     pub_link_live: document.getElementById('cfgPubLinkLive').value,
+    pub_minuto: document.getElementById('cfgPubMinuto').value,
+    corte_minuto: document.getElementById('cfgCorteMinuto').value,
     ai_mode: document.getElementById('cfgAiMode').value,
     ai_model: document.getElementById('cfgAiModel').value,
     anthropic_api_key: document.getElementById('cfgAnthropicApiKey').value,
@@ -1863,18 +1916,18 @@ async function saveConfig() {
     thumb_mode: document.getElementById('cfgThumbMode').value,
     thumb_image_provider: document.getElementById('cfgThumbImageProvider').value,
     thumb_model: document.getElementById('cfgThumbModel').value,
-    thumb_llm_1_provider: document.getElementById('cfgThumbLlm1Provider').value,
-    thumb_llm_1_model: document.getElementById('cfgThumbLlm1Model').value,
-    thumb_llm_2_provider: document.getElementById('cfgThumbLlm2Provider').value,
-    thumb_llm_2_model: document.getElementById('cfgThumbLlm2Model').value,
-    thumb_llm_3_provider: document.getElementById('cfgThumbLlm3Provider').value,
-    thumb_llm_3_model: document.getElementById('cfgThumbLlm3Model').value,
     thumb_text_position: document.getElementById('cfgThumbTextPosition').value,
     thumb_font_size: document.getElementById('cfgThumbFontSize').value,
     thumb_brand: document.getElementById('cfgThumbBrand').value,
     thumb_text_color: document.getElementById('cfgThumbTextColor').value,
     thumb_accent_color: document.getElementById('cfgThumbAccentColor').value,
-    thumb_brand_color: document.getElementById('cfgThumbBrandColor').value
+    thumb_brand_color: document.getElementById('cfgThumbBrandColor').value,
+    thumb_llm_1_provider: document.getElementById('cfgThumbLlm1Provider').value,
+    thumb_llm_1_model: document.getElementById('cfgThumbLlm1Model').value,
+    thumb_llm_2_provider: document.getElementById('cfgThumbLlm2Provider').value,
+    thumb_llm_2_model: document.getElementById('cfgThumbLlm2Model').value,
+    thumb_llm_3_provider: document.getElementById('cfgThumbLlm3Provider').value,
+    thumb_llm_3_model: document.getElementById('cfgThumbLlm3Model').value
   };
 
   try {
@@ -2185,19 +2238,25 @@ checkHealth();
 const privacyOrder = ['unlisted', 'public', 'private'];
 
 function showPrivacyDropdown(el, clipId) {
+  // Close any existing dropdown
   document.querySelectorAll('.privacy-dropdown').forEach(d => d.remove());
+
   const current = el.textContent.trim();
   const dd = document.createElement('div');
   dd.className = 'privacy-dropdown';
   dd.innerHTML = privacyOrder.map(opt =>
-    `<div class="${opt === current ? 'active' : ''}" onclick="selectPrivacy(this, '${clipId}', '${opt}')">${opt}</div>`
+    `<div class="${opt === current ? 'active' : ''}" onclick="selectPrivacy(this, '${clipId}', '${opt}', '${el.id || ''}')">${opt}</div>`
   ).join('');
+
+  // Posicionar no body para evitar overflow da tabela
   const rect = el.getBoundingClientRect();
   dd.style.position = 'fixed';
   dd.style.top = (rect.bottom + 4) + 'px';
   dd.style.left = rect.left + 'px';
   dd._toggleEl = el;
   document.body.appendChild(dd);
+
+  // Close on click outside
   setTimeout(() => {
     document.addEventListener('click', function handler(e) {
       if (!dd.contains(e.target) && e.target !== el) { dd.remove(); document.removeEventListener('click', handler); }
@@ -2208,8 +2267,10 @@ function showPrivacyDropdown(el, clipId) {
 async function selectPrivacy(optEl, clipId, newPrivacy) {
   const dd = optEl.closest('.privacy-dropdown');
   const toggle = dd._toggleEl;
-  const current = toggle.textContent.trim();
   dd.remove();
+
+  if (!toggle) return;
+  const current = toggle.textContent.trim();
   if (newPrivacy === current) return;
 
   toggle.classList.add('saving');
@@ -2314,17 +2375,20 @@ async function deleteClip(clipId, titulo, btn) {
 
 async function deletePendingClip(liveId, titulo, btn) {
   if (!confirm(`Excluir clip pendente "${titulo}" da live ${liveId}?`)) return;
+
   btn.disabled = true;
   btn.textContent = '...';
+
   try {
     const resp = await fetchJson('/api/clip/delete-pending', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({live_video_id: liveId, title: titulo})
     });
+
     if (resp.ok) {
       btn.closest('tr').remove();
-      showToast('Clip pendente excluido');
+      showToast(`Clip pendente excluido`);
       loadStats();
     } else {
       showToast('Erro ao excluir: ' + (resp.error || 'desconhecido'), 'error');
@@ -2416,6 +2480,7 @@ document.addEventListener('keydown', e => {
 loadAll();
 </script>
 
+<!-- Changelog Modal -->
 <div class="modal-overlay" id="modalChangelog" onclick="if(event.target===this)closeModal('modalChangelog')">
   <div class="modal" style="max-width:600px">
     <div class="modal-header">
@@ -2423,32 +2488,41 @@ loadAll();
       <button onclick="closeModal('modalChangelog')" style="background:none;border:none;color:var(--muted);font-size:1.2em;cursor:pointer">X</button>
     </div>
     <div class="modal-body" style="padding:16px;overflow-y:auto;font-size:0.85em;line-height:1.8">
+      <h3 style="color:var(--accent);margin-bottom:8px">v3.9.15</h3>
+      <p style="color:var(--muted);margin-bottom:4px"><strong>Fixes:</strong></p>
+      <ul style="margin:0 0 8px 20px;color:var(--text)">
+        <li>Fix publicacao duplicada: dashboard rodava scheduler embutido em paralelo com scheduler.py</li>
+        <li>Fix yt-dlp: fallback sem cookies quando Firefox retorna "page needs to be reloaded"</li>
+        <li>Fix re-publicacao: clips com erro_upload/publicando nao sao re-tentados automaticamente</li>
+      </ul>
+
       <h3 style="color:var(--accent);margin-bottom:8px">v3.9.14</h3>
       <p style="color:var(--muted);margin-bottom:4px"><strong>Features:</strong></p>
       <ul style="margin:0 0 8px 20px;color:var(--text)">
-        <li>LLM chain: cadeia de 3 providers para gerar prompt de thumbnail (fallback automatico)</li>
-        <li>Image provider: suporte a Kie.ai (GPT-4o, Flux Kontext) alem de Piramyd</li>
-        <li>Config: novas chaves salvas automaticamente na planilha (append)</li>
+        <li>LLM chain: 3 providers em cadeia para gerar prompt de thumbnail (fallback automatico)</li>
+        <li>Multi-provider de imagem: Piramyd + Kie.ai (GPT-4o, Flux Kontext)</li>
+        <li>Kie.ai API key no painel + campo modelo de imagem como texto livre</li>
+        <li>Config append: novas chaves sao adicionadas automaticamente na planilha</li>
       </ul>
 
       <h3 style="color:var(--accent);margin-bottom:8px">v3.9.13</h3>
-      <p style="color:var(--muted);margin-bottom:4px"><strong>Features:</strong></p>
-      <ul style="margin:0 0 8px 20px;color:var(--text)">
-        <li>Painel de clips: coluna Link, dropdown de privacy (fix overflow), botao excluir pendentes</li>
-        <li>API delete-pending: exclui clips pendentes do manifest</li>
+      <ul style="margin:0 0 16px 20px;color:var(--text)">
+        <li>Painel clips: coluna Link mostra URL real da publicacao no YouTube</li>
+        <li>Botao excluir ao lado da privacy (sempre visivel)</li>
+        <li>Icone arquivo mudou de pasta para play (▶)</li>
+        <li>Excluir clips pendentes (remove do manifest)</li>
       </ul>
-
       <h3 style="color:var(--accent);margin-bottom:8px">v3.9.12</h3>
       <p style="color:var(--muted);margin-bottom:4px"><strong>Features:</strong></p>
       <ul style="margin:0 0 8px 20px;color:var(--text)">
         <li>Lock na planilha: marca "publicando" antes de enviar, evita duplicatas entre processos</li>
-        <li>Auto-sync: toggle ON/OFF, sincroniza lives faltantes a meia-noite</li>
-        <li>Sync rapido com 1 clique (sem filtros) + sync avancado separado</li>
         <li>Health bar - status do sistema (yt-dlp, Sheets, APIs, YouTube, Scheduler)</li>
         <li>Proximos horarios de corte/pub visiveis no dashboard</li>
         <li>Toggle "Link da live na descricao" nas configuracoes</li>
         <li>Corte roda em thread separada - nao bloqueia publicacao</li>
         <li>Changelog acessivel pelo numero da versao</li>
+        <li>Sync rapido com 1 clique (sem filtros) + sync avancado separado</li>
+        <li>Auto-sync: toggle ON/OFF, sincroniza lives faltantes a meia-noite</li>
       </ul>
       <p style="color:var(--muted);margin-bottom:4px"><strong>Bugs corrigidos:</strong></p>
       <ul style="margin:0 0 16px 20px;color:var(--text)">
