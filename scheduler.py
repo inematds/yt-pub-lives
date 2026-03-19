@@ -239,7 +239,7 @@ def run_corte(video_id, config=None):
 
 
 def refine_pub_with_ai(title, description, config, video_id=''):
-    """Usa IA para refinar titulo e descricao antes de publicar."""
+    """Usa Claude CLI (OAuth) para refinar titulo e descricao antes de publicar."""
     prompt_file = os.path.join(CONFIG_DIR, 'prompt_pub.txt')
     if not os.path.exists(prompt_file):
         return title, description
@@ -249,37 +249,23 @@ def refine_pub_with_ai(title, description, config, video_id=''):
     if not system_prompt:
         return title, description
 
-    # Determine API endpoint and key
-    api_key = config.get('thumb_api_key', '') or os.environ.get('PIRAMYD_API_KEY', '')
-    if not api_key:
-        log('  Sem API key para refinar publicacao, usando titulo/descricao originais')
-        return title, description
-
-    api_url = 'https://api.piramyd.cloud/v1/chat/completions'
-    ai_model = config.get('ai_model', '') or 'claude-sonnet-4.5'
-
     user_msg = f'Titulo original: "{title}"\nDescricao original: "{description}"\nVideo ID da live original: {video_id}'
-
-    payload = {
-        'model': ai_model,
-        'messages': [
-            {'role': 'system', 'content': system_prompt},
-            {'role': 'user', 'content': user_msg}
-        ],
-        'temperature': 0.7,
-        'max_tokens': 500
-    }
+    full_prompt = f'{system_prompt}\n\n---\n\n{user_msg}'
 
     try:
-        log(f'  Refinando titulo/descricao com IA ({ai_model})...')
-        body = json.dumps(payload).encode()
-        req = urllib.request.Request(api_url, data=body)
-        req.add_header('Content-Type', 'application/json')
-        req.add_header('Authorization', f'Bearer {api_key}')
+        log(f'  Refinando titulo/descricao com Claude CLI...')
+        env = os.environ.copy()
+        env.pop('CLAUDECODE', None)
+        result = subprocess.run(
+            ['claude', '-p', '--output-format', 'json', full_prompt],
+            capture_output=True, text=True, timeout=120, env=env
+        )
+        if result.returncode != 0:
+            log(f'  Claude CLI erro (code {result.returncode}): {result.stderr[:200]}, usando originais')
+            return title, description
 
-        resp = urllib.request.urlopen(req, timeout=60)
-        result = json.loads(resp.read())
-        content = result['choices'][0]['message']['content']
+        data = json.loads(result.stdout)
+        content = data.get('result', '')
 
         import re
         json_match = re.search(r'\{[\s\S]*\}', content)
