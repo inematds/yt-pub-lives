@@ -151,6 +151,13 @@
   }
   .config-section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
 
+  .config-tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 0; }
+  .config-tab { background: none; border: none; color: var(--muted); padding: 8px 16px; cursor: pointer; font-size: 0.85em; border-bottom: 2px solid transparent; transition: all 0.2s; }
+  .config-tab:hover { color: var(--text); }
+  .config-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .config-tab-content { display: none; }
+  .config-tab-content.active { display: block; }
+
   .config-section h3 {
     font-size: 0.9rem;
     margin-bottom: 12px;
@@ -782,309 +789,342 @@
   <!-- Config Panel -->
   <div class="config-panel" id="configPanel">
 
-    <!-- Canais -->
-    <div class="config-section">
-      <h3>Canais</h3>
-      <div class="config-grid" style="grid-template-columns: 1fr 1fr;">
-        <div class="config-field">
-          <label>Canal de Origem (lives)</label>
-          <div id="cfgCanalOrigem" style="padding:8px 0;color:var(--text)">-</div>
-        </div>
-        <div class="config-field">
-          <label>Canal de Destino (clips)</label>
-          <div id="cfgCanalDestino" style="padding:8px 0;color:var(--text)">-</div>
-        </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div class="config-tabs">
+        <button class="config-tab active" onclick="showConfigTab('horarios', this)">Horarios</button>
+        <button class="config-tab" onclick="showConfigTab('apis', this)">APIs & IA</button>
+        <button class="config-tab" onclick="showConfigTab('prompts', this)">Prompts</button>
+        <button class="config-tab" onclick="showConfigTab('manutencao', this)">Manutencao</button>
       </div>
+      <button onclick="saveConfig()" id="btnSaveTop" style="padding:6px 20px;">Salvar</button>
     </div>
 
-    <!-- Corte / Producao (em cima) -->
-    <div class="config-section">
-      <h3>Producao de Cortes</h3>
-      <div class="config-grid" style="grid-template-columns: 1fr 1fr;">
-        <div class="config-field">
-          <label>Corte automatico</label>
-          <select id="cfgCorteAuto">
-            <option value="true">Sim</option>
-            <option value="false">Nao</option>
-          </select>
-        </div>
-        <div class="config-field">
-          <label>Lives por execucao</label>
-          <input type="number" id="cfgCorteMax" min="1" max="50" value="3">
-          <div class="hint">Quantas lives processar por vez</div>
-        </div>
-      </div>
-      <div style="margin-top: 14px;">
-        <div class="hour-picker-header">
-          <label>Horarios de corte (clique para ativar/desativar)</label>
-          <div class="hour-picker-actions">
-            <button onclick="hourPickerSelectAll('corte')">Todas</button>
-            <button onclick="hourPickerClearAll('corte')">Limpar</button>
+    <!-- Tab: Horarios -->
+    <div class="config-tab-content active" id="cfgTab_horarios">
+      <!-- Canais -->
+      <div class="config-section">
+        <h3>Canais</h3>
+        <div class="config-grid" style="grid-template-columns: 1fr 1fr;">
+          <div class="config-field">
+            <label>Canal de Origem (lives)</label>
+            <div id="cfgCanalOrigem" style="padding:8px 0;color:var(--text)">-</div>
           </div>
-        </div>
-        <div class="hour-picker" id="corteHourPicker"></div>
-        <div class="hour-summary" id="corteSummary"></div>
-        <div style="margin-top:8px;display:flex;align-items:center;gap:8px;">
-          <label style="font-size:0.85em;color:var(--muted)">Minuto exato:</label>
-          <input type="number" id="cfgCorteMinuto" min="0" max="59" value="0" style="width:60px">
-          <span style="font-size:0.8em;color:var(--muted)">Ex: 30 → roda em HH:30</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Publicacao (embaixo) -->
-    <div class="config-section">
-      <h3>Publicacao de Clips</h3>
-      <div class="config-grid" style="grid-template-columns: 1fr 1fr 1fr;">
-        <div class="config-field">
-          <label>Privacidade padrao</label>
-          <select id="cfgPrivacy">
-            <option value="unlisted">Unlisted</option>
-            <option value="public">Public</option>
-            <option value="private">Private</option>
-          </select>
-        </div>
-        <div class="config-field">
-          <label>Clips por publicacao</label>
-          <input type="number" id="cfgPubMax" min="1" max="50" value="2">
-          <div class="hint">Quantos clips publicar por vez</div>
-        </div>
-        <div class="config-field">
-          <label>Link da live na descricao</label>
-          <select id="cfgPubLinkLive">
-            <option value="true">Sim</option>
-            <option value="false">Nao</option>
-          </select>
-          <div class="hint">Inclui link da live original</div>
-        </div>
-      </div>
-      <div style="margin-top: 14px;">
-        <div class="hour-picker-header">
-          <label>Horarios de publicacao (clique para ativar/desativar)</label>
-          <div class="hour-picker-actions">
-            <button onclick="hourPickerSelectAll('pub')">Todas</button>
-            <button onclick="hourPickerClearAll('pub')">Limpar</button>
-          </div>
-        </div>
-        <div class="hour-picker" id="pubHourPicker"></div>
-        <div class="hour-summary" id="pubSummary"></div>
-        <div style="margin-top:8px;display:flex;align-items:center;gap:8px;">
-          <label style="font-size:0.85em;color:var(--muted)">Minuto exato:</label>
-          <input type="number" id="cfgPubMinuto" min="0" max="59" value="0" style="width:60px">
-          <span style="font-size:0.8em;color:var(--muted)">Ex: 15 → roda em HH:15</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- API Keys -->
-    <div class="config-section">
-      <h3>API Keys</h3>
-      <div class="config-grid" style="grid-template-columns: 1fr 1fr 1fr 1fr;">
-        <div class="config-field">
-          <label>Anthropic (Claude)</label>
-          <input type="password" id="cfgAnthropicApiKey" placeholder="sk-ant-...">
-          <div class="hint">Para analise de cortes via API</div>
-        </div>
-        <div class="config-field">
-          <label>Piramyd (Imagens)</label>
-          <input type="password" id="cfgThumbApiKey" placeholder="sk-...">
-          <div class="hint">Para geracao de thumbnails</div>
-        </div>
-        <div class="config-field">
-          <label>OpenRouter</label>
-          <input type="password" id="cfgOpenrouterApiKey" placeholder="sk-or-...">
-          <div class="hint">Para modelos alternativos</div>
-        </div>
-        <div class="config-field">
-          <label>Kie.ai (Imagens)</label>
-          <input type="password" id="cfgKieApiKey" placeholder="abc123...">
-          <div class="hint">Para geracao de imagens (GPT-4o, Flux)</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Analise IA -->
-    <div class="config-section">
-      <h3>Analise de Cortes (IA)</h3>
-      <div class="config-grid" style="grid-template-columns: 1fr 1fr;">
-        <div class="config-field">
-          <label>Modo de Analise</label>
-          <select id="cfgAiMode">
-            <option value="claude-api">Claude CLI (OAuth)</option>
-            <option value="anthropic-api">Anthropic API Key</option>
-            <option value="openrouter-api">OpenRouter API</option>
-            <option value="piramyd-api">Piramyd API</option>
-          </select>
-          <div class="hint">Qual provider usar para analisar topicos</div>
-        </div>
-        <div class="config-field">
-          <label>Modelo de Analise</label>
-          <input type="text" id="cfgAiModel" placeholder="claude-sonnet-4-20250514">
-          <div class="hint">Modelo usado na analise (depende do provider)</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Thumbnails -->
-    <div class="config-section">
-      <h3>Thumbnails</h3>
-      <div class="config-grid" style="grid-template-columns: 1fr 1fr;">
-        <div class="config-field">
-          <label>Modo Thumbnail</label>
-          <select id="cfgThumbMode">
-            <option value="api">IA (API)</option>
-            <option value="local">Local (frame do video)</option>
-            <option value="none">Sem thumbnail</option>
-          </select>
-        </div>
-        <div class="config-field">
-          <label>Provider de Imagem</label>
-          <select id="cfgThumbImageProvider">
-            <option value="piramyd">Piramyd</option>
-            <option value="kie">Kie.ai</option>
-          </select>
-        </div>
-      </div>
-      <div class="config-grid" style="grid-template-columns: 1fr 1fr; margin-top:8px;">
-        <div class="config-field">
-          <label>Modelo de Imagem</label>
-          <input type="text" id="cfgThumbModel" placeholder="ex: dreamshaper, gpt4o-image, flux-kontext-pro">
-          <div class="hint">Piramyd: dreamshaper, flux2-klein-4b, sdxl-lite | Kie: google/nano-banana, gpt4o-image, flux-kontext-pro</div>
-        </div>
-      </div>
-      <div style="margin-top:12px;padding:10px;background:rgba(99,102,241,0.06);border:1px solid var(--border);border-radius:8px;">
-        <label style="font-weight:600;font-size:0.8rem;margin-bottom:8px;display:block;">LLM para gerar prompt (tenta na ordem, fallback local se todos falharem)</label>
-        <div class="config-grid" style="grid-template-columns: auto 1fr auto 1fr auto 1fr; gap:8px; align-items:center;">
-          <span style="font-size:0.75rem;color:var(--muted);font-weight:600;">1.</span>
-          <select id="cfgThumbLlm1Provider" style="padding:4px 8px;font-size:0.8rem;">
-            <option value="">--</option>
-            <option value="claude-oauth">Claude OAuth</option>
-            <option value="anthropic">Anthropic API</option>
-            <option value="openrouter">OpenRouter</option>
-            <option value="piramyd">Piramyd</option>
-          </select>
-          <span style="font-size:0.75rem;color:var(--muted);font-weight:600;">2.</span>
-          <select id="cfgThumbLlm2Provider" style="padding:4px 8px;font-size:0.8rem;">
-            <option value="">--</option>
-            <option value="claude-oauth">Claude OAuth</option>
-            <option value="anthropic">Anthropic API</option>
-            <option value="openrouter">OpenRouter</option>
-            <option value="piramyd">Piramyd</option>
-          </select>
-          <span style="font-size:0.75rem;color:var(--muted);font-weight:600;">3.</span>
-          <select id="cfgThumbLlm3Provider" style="padding:4px 8px;font-size:0.8rem;">
-            <option value="">--</option>
-            <option value="claude-oauth">Claude OAuth</option>
-            <option value="anthropic">Anthropic API</option>
-            <option value="openrouter">OpenRouter</option>
-            <option value="piramyd">Piramyd</option>
-          </select>
-          <span></span>
-          <input type="text" id="cfgThumbLlm1Model" placeholder="(nao precisa para OAuth)" style="padding:4px 8px;font-size:0.8rem;">
-          <span></span>
-          <input type="text" id="cfgThumbLlm2Model" value="google/gemini-2.5-flash-lite" placeholder="google/gemini-2.5-flash-lite" style="padding:4px 8px;font-size:0.8rem;">
-          <span></span>
-          <input type="text" id="cfgThumbLlm3Model" value="Gemini-2.5-Flash-Preview" placeholder="Gemini-2.5-Flash-Preview" style="padding:4px 8px;font-size:0.8rem;">
-        </div>
-      </div>
-      <div class="config-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-top:12px;">
-        <div class="config-field">
-          <label>Posicao do Titulo</label>
-          <select id="cfgThumbTextPosition">
-            <option value="top-left">Topo Esquerda</option>
-            <option value="top-center">Topo Centro</option>
-            <option value="top-right">Topo Direita</option>
-            <option value="center-left">Centro Esquerda</option>
-            <option value="center">Centro</option>
-            <option value="center-right">Centro Direita</option>
-            <option value="bottom-left">Base Esquerda</option>
-            <option value="bottom-center">Base Centro</option>
-            <option value="bottom-right">Base Direita</option>
-          </select>
-        </div>
-        <div class="config-field">
-          <label>Tamanho da Fonte</label>
-          <input type="number" id="cfgThumbFontSize" value="78" min="30" max="120" step="2">
-        </div>
-        <div class="config-field">
-          <label>Texto da Marca</label>
-          <input type="text" id="cfgThumbBrand" value="INEMA TDS" placeholder="INEMA TDS">
-        </div>
-      </div>
-      <div class="config-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-top:8px;">
-        <div class="config-field">
-          <label>Cor do Titulo</label>
-          <div style="display:flex;gap:8px;align-items:center;">
-            <input type="color" id="cfgThumbTextColor" value="#FFFFFF" style="width:40px;height:32px;border:1px solid var(--border);border-radius:4px;background:var(--bg);cursor:pointer;">
-            <input type="text" id="cfgThumbTextColorHex" value="#FFFFFF" style="width:90px;font-family:monospace;font-size:0.8rem;" oninput="document.getElementById('cfgThumbTextColor').value=this.value">
-          </div>
-        </div>
-        <div class="config-field">
-          <label>Cor do Accent</label>
-          <div style="display:flex;gap:8px;align-items:center;">
-            <input type="color" id="cfgThumbAccentColor" value="#00D4FF" style="width:40px;height:32px;border:1px solid var(--border);border-radius:4px;background:var(--bg);cursor:pointer;">
-            <input type="text" id="cfgThumbAccentColorHex" value="#00D4FF" style="width:90px;font-family:monospace;font-size:0.8rem;" oninput="document.getElementById('cfgThumbAccentColor').value=this.value">
-          </div>
-        </div>
-        <div class="config-field">
-          <label>Cor da Marca</label>
-          <div style="display:flex;gap:8px;align-items:center;">
-            <input type="color" id="cfgThumbBrandColor" value="#6366F1" style="width:40px;height:32px;border:1px solid var(--border);border-radius:4px;background:var(--bg);cursor:pointer;">
-            <input type="text" id="cfgThumbBrandColorHex" value="#6366F1" style="width:90px;font-family:monospace;font-size:0.8rem;" oninput="document.getElementById('cfgThumbBrandColor').value=this.value">
+          <div class="config-field">
+            <label>Canal de Destino (clips)</label>
+            <div id="cfgCanalDestino" style="padding:8px 0;color:var(--text)">-</div>
           </div>
         </div>
       </div>
-      <div style="margin-top:12px;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <label style="font-weight:600;">Thumbnails Pendentes</label>
-          <div style="display:flex;gap:8px;">
-            <button class="small secondary" onclick="loadPendingThumbs()">Atualizar</button>
-            <button class="small" id="btnUploadThumbs" onclick="uploadPendingThumbs()" style="background:var(--green);">Enviar para YouTube</button>
+
+      <!-- Corte / Producao -->
+      <div class="config-section">
+        <h3>Producao de Cortes</h3>
+        <div class="config-grid" style="grid-template-columns: 1fr 1fr;">
+          <div class="config-field">
+            <label>Corte automatico</label>
+            <select id="cfgCorteAuto">
+              <option value="true">Sim</option>
+              <option value="false">Nao</option>
+            </select>
+          </div>
+          <div class="config-field">
+            <label>Lives por execucao</label>
+            <input type="number" id="cfgCorteMax" min="1" max="50" value="3">
+            <div class="hint">Quantas lives processar por vez</div>
           </div>
         </div>
-        <div id="thumbsPendingInfo" style="color:var(--muted);font-size:0.85em;">Clique em Atualizar para verificar</div>
-        <div id="thumbsPendingList" style="max-height:200px;overflow-y:auto;margin-top:8px;display:none;"></div>
-      </div>
-    </div>
-
-    <!-- Prompts -->
-    <div class="config-section">
-      <h3>Prompts</h3>
-      <div class="config-field">
-        <label>Prompt Analise de Cortes (Claude analisa a transcricao e identifica topicos)</label>
-        <textarea id="cfgPromptCortes" rows="12" style="width:100%;font-family:monospace;font-size:0.8rem;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:8px;resize:vertical"></textarea>
-      </div>
-      <div class="config-field" style="margin-top:12px">
-        <label>Prompt Publicacao (refina titulo e descricao antes de publicar no YouTube)</label>
-        <textarea id="cfgPromptPub" rows="10" style="width:100%;font-family:monospace;font-size:0.8rem;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:8px;resize:vertical"></textarea>
-      </div>
-      <div class="config-field" style="margin-top:12px">
-        <label>Prompt Thumbnail (LLM gera prompt estruturado para o gerador de imagem)</label>
-        <textarea id="cfgPromptThumb" rows="12" style="width:100%;font-family:monospace;font-size:0.8rem;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:8px;resize:vertical"></textarea>
-      </div>
-    </div>
-
-    <!-- Limpeza de Disco -->
-    <div class="config-section">
-      <h3>Limpeza de Disco</h3>
-      <div class="config-grid" style="grid-template-columns: 1fr 1fr;">
-        <div class="config-field">
-          <label>Clips (mp4 cortados)</label>
-          <button onclick="cleanupClips()" id="btnCleanClips" style="background:#ef4444;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;">Limpar Clips</button>
-          <div class="hint">Remove todos os mp4 da pasta clips/. Mantem manifest e planilha.</div>
-        </div>
-        <div class="config-field">
-          <label>Videos Originais (source.mp4)</label>
-          <button onclick="cleanupSources()" id="btnCleanSources" style="background:#ef4444;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;">Limpar Originais</button>
-          <div class="hint">Remove os source.mp4 (videos completos baixados). Mantem clips.</div>
+        <div style="margin-top: 14px;">
+          <div class="hour-picker-header">
+            <label>Horarios de corte (clique para ativar/desativar)</label>
+            <div class="hour-picker-actions">
+              <button onclick="hourPickerSelectAll('corte')">Todas</button>
+              <button onclick="hourPickerClearAll('corte')">Limpar</button>
+            </div>
+          </div>
+          <div class="hour-picker" id="corteHourPicker"></div>
+          <div class="hour-summary" id="corteSummary"></div>
+          <div style="margin-top:8px;display:flex;align-items:center;gap:8px;">
+            <label style="font-size:0.85em;color:var(--muted)">Minuto exato:</label>
+            <input type="number" id="cfgCorteMinuto" min="0" max="59" value="0" style="width:60px">
+            <span style="font-size:0.8em;color:var(--muted)">Ex: 30 → roda em HH:30</span>
+          </div>
         </div>
       </div>
-      <div id="cleanupResult" style="margin-top:8px;color:var(--muted);font-size:0.85em;"></div>
+
+      <!-- Publicacao -->
+      <div class="config-section">
+        <h3>Publicacao de Clips</h3>
+        <div class="config-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+          <div class="config-field">
+            <label>Privacidade padrao</label>
+            <select id="cfgPrivacy">
+              <option value="unlisted">Unlisted</option>
+              <option value="public">Public</option>
+              <option value="private">Private</option>
+            </select>
+          </div>
+          <div class="config-field">
+            <label>Clips por publicacao</label>
+            <input type="number" id="cfgPubMax" min="1" max="50" value="2">
+            <div class="hint">Quantos clips publicar por vez</div>
+          </div>
+          <div class="config-field">
+            <label>Link da live na descricao</label>
+            <select id="cfgPubLinkLive">
+              <option value="true">Sim</option>
+              <option value="false">Nao</option>
+            </select>
+            <div class="hint">Inclui link da live original</div>
+          </div>
+        </div>
+        <div style="margin-top: 14px;">
+          <div class="hour-picker-header">
+            <label>Horarios de publicacao (clique para ativar/desativar)</label>
+            <div class="hour-picker-actions">
+              <button onclick="hourPickerSelectAll('pub')">Todas</button>
+              <button onclick="hourPickerClearAll('pub')">Limpar</button>
+            </div>
+          </div>
+          <div class="hour-picker" id="pubHourPicker"></div>
+          <div class="hour-summary" id="pubSummary"></div>
+          <div style="margin-top:8px;display:flex;align-items:center;gap:8px;">
+            <label style="font-size:0.85em;color:var(--muted)">Minuto exato:</label>
+            <input type="number" id="cfgPubMinuto" min="0" max="59" value="0" style="width:60px">
+            <span style="font-size:0.8em;color:var(--muted)">Ex: 15 → roda em HH:15</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: 8px;">
+        <button onclick="saveConfig()" id="btnSave">Salvar Configuracoes</button>
+      </div>
     </div>
 
-    <div style="margin-top: 8px;">
-      <button onclick="saveConfig()" id="btnSave">Salvar Configuracoes</button>
+    <!-- Tab: APIs & IA -->
+    <div class="config-tab-content" id="cfgTab_apis">
+      <!-- API Keys -->
+      <div class="config-section">
+        <h3>API Keys</h3>
+        <div class="config-grid" style="grid-template-columns: 1fr 1fr 1fr 1fr;">
+          <div class="config-field">
+            <label>Anthropic (Claude)</label>
+            <input type="password" id="cfgAnthropicApiKey" placeholder="sk-ant-...">
+            <div class="hint">Para analise de cortes via API</div>
+          </div>
+          <div class="config-field">
+            <label>Piramyd (Imagens)</label>
+            <input type="password" id="cfgThumbApiKey" placeholder="sk-...">
+            <div class="hint">Para geracao de thumbnails</div>
+          </div>
+          <div class="config-field">
+            <label>OpenRouter</label>
+            <input type="password" id="cfgOpenrouterApiKey" placeholder="sk-or-...">
+            <div class="hint">Para modelos alternativos</div>
+          </div>
+          <div class="config-field">
+            <label>Kie.ai (Imagens)</label>
+            <input type="password" id="cfgKieApiKey" placeholder="abc123...">
+            <div class="hint">Para geracao de imagens (GPT-4o, Flux)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Analise IA -->
+      <div class="config-section">
+        <h3>Analise de Cortes (IA)</h3>
+        <div class="config-grid" style="grid-template-columns: 1fr 1fr;">
+          <div class="config-field">
+            <label>Modo de Analise</label>
+            <select id="cfgAiMode">
+              <option value="claude-api">Claude CLI (OAuth)</option>
+              <option value="anthropic-api">Anthropic API Key</option>
+              <option value="openrouter-api">OpenRouter API</option>
+              <option value="piramyd-api">Piramyd API</option>
+            </select>
+            <div class="hint">Qual provider usar para analisar topicos</div>
+          </div>
+          <div class="config-field">
+            <label>Modelo de Analise</label>
+            <input type="text" id="cfgAiModel" placeholder="claude-sonnet-4-20250514">
+            <div class="hint">Modelo usado na analise (depende do provider)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Thumbnails -->
+      <div class="config-section">
+        <h3>Thumbnails</h3>
+        <div class="config-grid" style="grid-template-columns: 1fr 1fr;">
+          <div class="config-field">
+            <label>Modo Thumbnail</label>
+            <select id="cfgThumbMode">
+              <option value="api">IA (API)</option>
+              <option value="local">Local (frame do video)</option>
+              <option value="none">Sem thumbnail</option>
+            </select>
+          </div>
+          <div class="config-field">
+            <label>Provider de Imagem</label>
+            <select id="cfgThumbImageProvider">
+              <option value="piramyd">Piramyd</option>
+              <option value="kie">Kie.ai</option>
+              <option value="minimax">MiniMax</option>
+              <option value="google">Google Imagen</option>
+            </select>
+          </div>
+        </div>
+        <div class="config-grid" style="grid-template-columns: 1fr 1fr; margin-top:8px;">
+          <div class="config-field">
+            <label>Modelo de Imagem</label>
+            <input type="text" id="cfgThumbModel" placeholder="ex: dreamshaper, gpt4o-image, flux-kontext-pro">
+            <div class="hint">Piramyd: dreamshaper, flux2-klein-4b, sdxl-lite | Kie: google/nano-banana, gpt4o-image, flux-kontext-pro</div>
+          </div>
+        </div>
+        <div style="margin-top:12px;padding:10px;background:rgba(99,102,241,0.06);border:1px solid var(--border);border-radius:8px;">
+          <label style="font-weight:600;font-size:0.8rem;margin-bottom:8px;display:block;">LLM para gerar prompt (tenta na ordem, fallback local se todos falharem)</label>
+          <div class="config-grid" style="grid-template-columns: auto 1fr auto 1fr auto 1fr; gap:8px; align-items:center;">
+            <span style="font-size:0.75rem;color:var(--muted);font-weight:600;">1.</span>
+            <select id="cfgThumbLlm1Provider" style="padding:4px 8px;font-size:0.8rem;">
+              <option value="">--</option>
+              <option value="claude-oauth">Claude OAuth</option>
+              <option value="anthropic">Anthropic API</option>
+              <option value="openrouter">OpenRouter</option>
+              <option value="piramyd">Piramyd</option>
+            </select>
+            <span style="font-size:0.75rem;color:var(--muted);font-weight:600;">2.</span>
+            <select id="cfgThumbLlm2Provider" style="padding:4px 8px;font-size:0.8rem;">
+              <option value="">--</option>
+              <option value="claude-oauth">Claude OAuth</option>
+              <option value="anthropic">Anthropic API</option>
+              <option value="openrouter">OpenRouter</option>
+              <option value="piramyd">Piramyd</option>
+            </select>
+            <span style="font-size:0.75rem;color:var(--muted);font-weight:600;">3.</span>
+            <select id="cfgThumbLlm3Provider" style="padding:4px 8px;font-size:0.8rem;">
+              <option value="">--</option>
+              <option value="claude-oauth">Claude OAuth</option>
+              <option value="anthropic">Anthropic API</option>
+              <option value="openrouter">OpenRouter</option>
+              <option value="piramyd">Piramyd</option>
+            </select>
+            <span></span>
+            <input type="text" id="cfgThumbLlm1Model" placeholder="(nao precisa para OAuth)" style="padding:4px 8px;font-size:0.8rem;">
+            <span></span>
+            <input type="text" id="cfgThumbLlm2Model" value="google/gemini-2.5-flash-lite" placeholder="google/gemini-2.5-flash-lite" style="padding:4px 8px;font-size:0.8rem;">
+            <span></span>
+            <input type="text" id="cfgThumbLlm3Model" value="Gemini-2.5-Flash-Preview" placeholder="Gemini-2.5-Flash-Preview" style="padding:4px 8px;font-size:0.8rem;">
+          </div>
+        </div>
+        <div class="config-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-top:12px;">
+          <div class="config-field">
+            <label>Posicao do Titulo</label>
+            <select id="cfgThumbTextPosition">
+              <option value="top-left">Topo Esquerda</option>
+              <option value="top-center">Topo Centro</option>
+              <option value="top-right">Topo Direita</option>
+              <option value="center-left">Centro Esquerda</option>
+              <option value="center">Centro</option>
+              <option value="center-right">Centro Direita</option>
+              <option value="bottom-left">Base Esquerda</option>
+              <option value="bottom-center">Base Centro</option>
+              <option value="bottom-right">Base Direita</option>
+            </select>
+          </div>
+          <div class="config-field">
+            <label>Tamanho da Fonte</label>
+            <input type="number" id="cfgThumbFontSize" value="78" min="30" max="120" step="2">
+          </div>
+          <div class="config-field">
+            <label>Texto da Marca</label>
+            <input type="text" id="cfgThumbBrand" value="INEMA TDS" placeholder="INEMA TDS">
+          </div>
+        </div>
+        <div class="config-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-top:8px;">
+          <div class="config-field">
+            <label>Cor do Titulo</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="color" id="cfgThumbTextColor" value="#FFFFFF" style="width:40px;height:32px;border:1px solid var(--border);border-radius:4px;background:var(--bg);cursor:pointer;">
+              <input type="text" id="cfgThumbTextColorHex" value="#FFFFFF" style="width:90px;font-family:monospace;font-size:0.8rem;" oninput="document.getElementById('cfgThumbTextColor').value=this.value">
+            </div>
+          </div>
+          <div class="config-field">
+            <label>Cor do Accent</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="color" id="cfgThumbAccentColor" value="#00D4FF" style="width:40px;height:32px;border:1px solid var(--border);border-radius:4px;background:var(--bg);cursor:pointer;">
+              <input type="text" id="cfgThumbAccentColorHex" value="#00D4FF" style="width:90px;font-family:monospace;font-size:0.8rem;" oninput="document.getElementById('cfgThumbAccentColor').value=this.value">
+            </div>
+          </div>
+          <div class="config-field">
+            <label>Cor da Marca</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="color" id="cfgThumbBrandColor" value="#6366F1" style="width:40px;height:32px;border:1px solid var(--border);border-radius:4px;background:var(--bg);cursor:pointer;">
+              <input type="text" id="cfgThumbBrandColorHex" value="#6366F1" style="width:90px;font-family:monospace;font-size:0.8rem;" oninput="document.getElementById('cfgThumbBrandColor').value=this.value">
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:12px;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <label style="font-weight:600;">Thumbnails Pendentes</label>
+            <div style="display:flex;gap:8px;">
+              <button class="small secondary" onclick="loadPendingThumbs()">Atualizar</button>
+              <button class="small" id="btnUploadThumbs" onclick="uploadPendingThumbs()" style="background:var(--green);">Enviar para YouTube</button>
+            </div>
+          </div>
+          <div id="thumbsPendingInfo" style="color:var(--muted);font-size:0.85em;">Clique em Atualizar para verificar</div>
+          <div id="thumbsPendingList" style="max-height:200px;overflow-y:auto;margin-top:8px;display:none;"></div>
+        </div>
+      </div>
+
+      <div style="margin-top: 8px;">
+        <button onclick="saveConfig()">Salvar Configuracoes</button>
+      </div>
     </div>
+
+    <!-- Tab: Prompts -->
+    <div class="config-tab-content" id="cfgTab_prompts">
+      <div style="margin-bottom: 12px;">
+        <button onclick="saveConfig()">Salvar Configuracoes</button>
+      </div>
+      <div class="config-section">
+        <h3>Prompts</h3>
+        <div class="config-field">
+          <label>Prompt Analise de Cortes (Claude analisa a transcricao e identifica topicos)</label>
+          <textarea id="cfgPromptCortes" rows="12" style="width:100%;font-family:monospace;font-size:0.8rem;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:8px;resize:vertical"></textarea>
+        </div>
+        <div class="config-field" style="margin-top:12px">
+          <label>Prompt Publicacao (refina titulo e descricao antes de publicar no YouTube)</label>
+          <textarea id="cfgPromptPub" rows="10" style="width:100%;font-family:monospace;font-size:0.8rem;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:8px;resize:vertical"></textarea>
+        </div>
+        <div class="config-field" style="margin-top:12px">
+          <label>Prompt Thumbnail (LLM gera prompt estruturado para o gerador de imagem)</label>
+          <textarea id="cfgPromptThumb" rows="12" style="width:100%;font-family:monospace;font-size:0.8rem;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:8px;resize:vertical"></textarea>
+        </div>
+      </div>
+      <div style="margin-top: 8px;">
+        <button onclick="saveConfig()">Salvar Configuracoes</button>
+      </div>
+    </div>
+
+    <!-- Tab: Manutencao -->
+    <div class="config-tab-content" id="cfgTab_manutencao">
+      <div class="config-section">
+        <h3>Limpeza de Disco</h3>
+        <div class="config-grid" style="grid-template-columns: 1fr 1fr;">
+          <div class="config-field">
+            <label>Clips (mp4 cortados)</label>
+            <button onclick="cleanupClips()" id="btnCleanClips" style="background:#ef4444;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;">Limpar Clips</button>
+            <div class="hint">Remove todos os mp4 da pasta clips/. Mantem manifest e planilha.</div>
+          </div>
+          <div class="config-field">
+            <label>Videos Originais (source.mp4)</label>
+            <button onclick="cleanupSources()" id="btnCleanSources" style="background:#ef4444;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;">Limpar Originais</button>
+            <div class="hint">Remove os source.mp4 (videos completos baixados). Mantem clips.</div>
+          </div>
+        </div>
+        <div id="cleanupResult" style="margin-top:8px;color:var(--muted);font-size:0.85em;"></div>
+      </div>
+    </div>
+
   </div>
 
   <!-- Tabs -->
@@ -1270,6 +1310,13 @@ function toggleConfig() {
   const panel = document.getElementById('configPanel');
   panel.classList.toggle('visible');
   if (panel.classList.contains('visible')) loadPendingThumbs();
+}
+
+function showConfigTab(name, btn) {
+  document.querySelectorAll('.config-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.config-tab-content').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  document.getElementById('cfgTab_' + name).classList.add('active');
 }
 
 // --- Hour Picker ---
