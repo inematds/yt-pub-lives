@@ -1670,7 +1670,7 @@ function filterLives() {
       <td title="${escapeHtml(l.titulo)}">${escapeHtml(l.titulo)}</td>
       <td>${l.duracao_min ? l.duracao_min + ' min' : '-'}</td>
       <td>${cortesBadge}${reprocessBtn}</td>
-      <td>${l.data_publicacao || '-'}</td>
+      <td>${l.data_corte || l.data_publicacao || '-'}</td>
       <td style="cursor:pointer" onclick="goToClips('${l.video_id}')">${l.qtd_clips || '0'}</td>
       <td style="cursor:pointer" onclick="goToClips('${l.video_id}')"><span style="color:${parseInt(l.clips_publicados||0) > 0 ? (parseInt(l.clips_publicados||0) >= parseInt(l.qtd_clips||0) ? '#10b981' : '#f59e0b') : 'var(--muted)'}">${l.clips_publicados || '0'}</span></td>
       <td><span style="cursor:pointer;color:#ef4444;font-size:1.1em" onclick="deleteLiveFiles('${l.video_id}')" title="Deletar arquivos do disco">&#128465;</span></td>

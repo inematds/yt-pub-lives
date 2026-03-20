@@ -125,7 +125,7 @@ def load_config():
 
 def get_pending_lives():
     """Retorna lives pendentes (mais antigas primeiro)."""
-    result = sheets_get('LIVES!A1:L1000')
+    result = sheets_get('LIVES!A1:M1000')
     rows = result.get('values', [])
     if len(rows) < 2:
         return [], rows
@@ -517,7 +517,7 @@ def update_live_status(row_num, headers, row_data, status_field, new_status, ext
                 while len(row_data) <= col:
                     row_data.append('')
                 row_data[col] = str(val)
-    sheets_update(f'LIVES!A{row_num}:L{row_num}', [row_data])
+    sheets_update(f'LIVES!A{row_num}:M{row_num}', [row_data])
 
 
 def process_cortes(config):
@@ -559,7 +559,8 @@ def process_cortes(config):
 
             update_live_status(row_num, headers, list(orig_row), 'status_transcricao', 'transcricao', {
                 'status_cortes': 'concluido' if has_clips else 'pendente',
-                'qtd_clips': qtd_clips
+                'qtd_clips': qtd_clips,
+                'data_corte': datetime.now().strftime('%Y-%m-%d %H:%M')
             })
         else:
             update_live_status(row_num, headers, list(orig_row), 'status_cortes', 'erro')
