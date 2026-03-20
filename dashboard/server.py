@@ -354,7 +354,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.wfile.write(f.read())
 
     def handle_api_lives(self):
-        result = sheets_get('LIVES!A1:L1000')
+        result = sheets_get('LIVES!A1:M1000')
         rows = result.get('values', [])
         if len(rows) < 2:
             self.send_json(200, {'lives': [], 'headers': rows[0] if rows else []})
@@ -384,19 +384,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     if lid not in pub_dates or dt > pub_dates[lid]:
                         pub_dates[lid] = dt
 
-        lives_dir = os.environ.get('LIVES_DIR', os.path.join(PROJECT_ROOT, 'lives'))
         for live in lives:
             live['data_publicacao'] = pub_dates.get(live.get('video_id', ''), '')
-            # Fallback: data do arquivo manifest ou topics se nao tem data_publicacao
-            if not live['data_publicacao'] and live.get('video_id'):
-                vid = live['video_id']
-                for fname in ('clips_manifest.json', 'topics.json'):
-                    fpath = os.path.join(lives_dir, vid, fname)
-                    if os.path.exists(fpath):
-                        from datetime import datetime as _dt
-                        mtime = os.path.getmtime(fpath)
-                        live['data_publicacao'] = _dt.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M')
-                        break
 
         # Oldest first - prioritize processing older lives
         lives.sort(key=lambda l: l.get('data_live', ''))
@@ -546,7 +535,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.send_json(200, {'ok': True, 'saved': saved})
 
     def handle_api_stats(self):
-        lives_result = sheets_get('LIVES!A1:L1000')
+        lives_result = sheets_get('LIVES!A1:M1000')
         pub_result = sheets_get('PUBLICADOS!A1:J1000')
 
         lives_rows = lives_result.get('values', [])
@@ -824,7 +813,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_json(400, {'error': 'video_id required'})
             return
 
-        result = sheets_get('LIVES!A1:L1000')
+        result = sheets_get('LIVES!A1:M1000')
         rows = result.get('values', [])
         if len(rows) < 2:
             self.send_json(404, {'error': 'no lives found'})
@@ -979,7 +968,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             return
 
         # Remove da planilha
-        result = sheets_get('LIVES!A1:L1000')
+        result = sheets_get('LIVES!A1:M1000')
         rows = result.get('values', [])
         if len(rows) < 2:
             self.send_json(404, {'error': 'no lives'})
