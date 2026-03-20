@@ -384,8 +384,19 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     if lid not in pub_dates or dt > pub_dates[lid]:
                         pub_dates[lid] = dt
 
+        lives_dir = os.environ.get('LIVES_DIR', os.path.join(PROJECT_ROOT, 'lives'))
         for live in lives:
             live['data_publicacao'] = pub_dates.get(live.get('video_id', ''), '')
+            # Fallback: data do arquivo manifest ou topics se nao tem data_publicacao
+            if not live['data_publicacao'] and live.get('video_id'):
+                vid = live['video_id']
+                for fname in ('clips_manifest.json', 'topics.json'):
+                    fpath = os.path.join(lives_dir, vid, fname)
+                    if os.path.exists(fpath):
+                        from datetime import datetime as _dt
+                        mtime = os.path.getmtime(fpath)
+                        live['data_publicacao'] = _dt.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M')
+                        break
 
         # Oldest first - prioritize processing older lives
         lives.sort(key=lambda l: l.get('data_live', ''))
