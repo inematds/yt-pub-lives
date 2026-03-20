@@ -387,6 +387,9 @@ def handle_thumbnail(video_id, title, description, config):
             kie_key = config.get('kie_api_key', '')
             if kie_key:
                 os.environ['KIE_API_KEY'] = kie_key
+            minimax_key = config.get('minimax_api_key', '')
+            if minimax_key:
+                os.environ['MINIMAX_API_KEY'] = minimax_key
             # API keys dos providers
             or_key = config.get('openrouter_api_key', '')
             if or_key:
