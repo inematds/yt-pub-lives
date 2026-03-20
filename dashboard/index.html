@@ -1129,7 +1129,7 @@
 
   <!-- Tabs -->
   <div class="tabs" id="tabsBar">
-    <button class="tab active" data-tab="lives" onclick="showTab('lives', this)">Lives</button>
+    <button class="tab active" data-tab="lives" onclick="showTab('lives', this); showLivesView('todas')">Lives</button>
     <button class="tab" data-tab="lives" onclick="showTab('lives', this); showLivesView('ultimas')">Ultimas Lives</button>
     <button class="tab" data-tab="lives" onclick="showTab('lives', this); showLivesView('proximas')">Proximas Lives</button>
     <button class="tab" data-tab="publicados" onclick="showTab('publicados', this, '')">Todos Clips</button>
@@ -1594,7 +1594,10 @@ function showLivesView(view) {
   // Ultimas: lives cortadas, ordenadas pela data de publicação mais recente
   // Proximas: lives pendentes (sem corte), ordenadas pela data mais antiga
   document.getElementById('livesSearch').value = '';
-  if (view === 'ultimas') {
+  if (view === 'todas') {
+    document.getElementById('livesStatus').value = '';
+    document.getElementById('livesOrder').value = 'oldest';
+  } else if (view === 'ultimas') {
     document.getElementById('livesStatus').value = 'concluido';
     document.getElementById('livesOrder').value = 'newest';
   } else if (view === 'proximas') {
