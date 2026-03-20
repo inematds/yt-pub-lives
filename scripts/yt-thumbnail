@@ -242,6 +242,8 @@ def build_image_prompt(prompt_data):
 
 KIE_API_KEY = os.environ.get('KIE_API_KEY', '')
 KIE_URL = 'https://api.kie.ai/api/v1'
+MINIMAX_API_KEY = os.environ.get('MINIMAX_API_KEY', '')
+MINIMAX_URL = 'https://api.minimax.io/v1'
 
 # Image provider config from env
 IMAGE_PROVIDER = os.environ.get('THUMB_IMAGE_PROVIDER', 'piramyd')
@@ -336,12 +338,50 @@ def _generate_image_kie(image_prompt):
     raise ValueError('Kie timeout (180s)')
 
 
+def _generate_image_minimax(image_prompt):
+    """Gera imagem via MiniMax API (image-01)."""
+    import base64 as b64
+    payload = {
+        'model': 'image-01',
+        'prompt': image_prompt,
+        'aspect_ratio': '16:9',
+        'response_format': 'base64'
+    }
+    body = json.dumps(payload).encode()
+    req = urllib.request.Request(f'{MINIMAX_URL}/image_generation', data=body)
+    req.add_header('Content-Type', 'application/json')
+    req.add_header('Authorization', f'Bearer {MINIMAX_API_KEY}')
+
+    resp = urllib.request.urlopen(req, timeout=120)
+    result = json.loads(resp.read())
+
+    base_resp = result.get('base_resp', {})
+    if base_resp.get('status_code', 0) != 0:
+        raise ValueError(f'MiniMax erro: {base_resp.get("status_msg", "unknown")}')
+
+    data = result.get('data', [])
+    if not data:
+        raise ValueError('MiniMax nao retornou imagem')
+
+    img_b64 = data[0].get('b64_image', '')
+    if not img_b64:
+        raise ValueError('MiniMax sem base64 na resposta')
+
+    img_bytes = b64.b64decode(img_b64)
+    return img_bytes
+
+
 def generate_ai_image(image_prompt):
     """Gera imagem usando o provider configurado."""
     provider = IMAGE_PROVIDER
     print(f'  [2/3] Gerando imagem com {provider}/{IMAGE_MODEL}...', flush=True)
 
-    if provider == 'kie':
+    if provider == 'minimax':
+        img_bytes = _generate_image_minimax(image_prompt)
+        img = Image.open(io.BytesIO(img_bytes))
+        img = img.resize((WIDTH, HEIGHT), Image.LANCZOS).convert('RGB')
+        return img
+    elif provider == 'kie':
         img_url = _generate_image_kie(image_prompt)
     else:
         img_url = _generate_image_piramyd(image_prompt)
