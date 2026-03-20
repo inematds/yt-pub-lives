@@ -1130,11 +1130,12 @@
   <!-- Tabs -->
   <div class="tabs" id="tabsBar">
     <button class="tab active" data-tab="lives" onclick="showTab('lives', this)">Lives</button>
-    <button class="tab" data-tab="lives" onclick="showTab('lives', this); showLivesView('ultimas')">Ultimas</button>
-    <button class="tab" data-tab="lives" onclick="showTab('lives', this); showLivesView('proximas')">Proximas</button>
-    <button class="tab" data-tab="publicados" onclick="showTab('publicados', this, 'publicado')">Publicados <span id="tabCountPub" style="font-size:0.8em;opacity:0.6"></span></button>
-    <button class="tab" data-tab="publicados" onclick="showTab('publicados', this, 'pendente')">Pendentes <span id="tabCountPend" style="font-size:0.8em;opacity:0.6"></span></button>
-    <button class="tab" data-tab="publicados" onclick="showTab('publicados', this, 'erro')">Erros <span id="tabCountErro" style="font-size:0.8em;opacity:0.6"></span></button>
+    <button class="tab" data-tab="lives" onclick="showTab('lives', this); showLivesView('ultimas')">Ultimas Lives</button>
+    <button class="tab" data-tab="lives" onclick="showTab('lives', this); showLivesView('proximas')">Proximas Lives</button>
+    <button class="tab" data-tab="publicados" onclick="showTab('publicados', this, '')">Todos Clips</button>
+    <button class="tab" data-tab="publicados" onclick="showTab('publicados', this, 'publicado')">Clips Publicados <span id="tabCountPub" style="font-size:0.8em;opacity:0.6"></span></button>
+    <button class="tab" data-tab="publicados" onclick="showTab('publicados', this, 'pendente')">Clips Pendentes <span id="tabCountPend" style="font-size:0.8em;opacity:0.6"></span></button>
+    <button class="tab" data-tab="publicados" onclick="showTab('publicados', this, 'erro')">Clips Erros <span id="tabCountErro" style="font-size:0.8em;opacity:0.6"></span></button>
   </div>
 
   <!-- Lives Toolbar + Table -->
