@@ -417,6 +417,17 @@ def handle_thumbnail(video_id, title, description, config):
                 val = config.get(key, '')
                 if val:
                     os.environ[key.upper()] = val
+            # Design config
+            for key in ('design_font', 'design_font_size', 'design_last_line_scale',
+                        'design_line_height', 'design_tracking', 'design_case',
+                        'design_text_color', 'design_highlight_color', 'design_highlight_enabled',
+                        'design_shadow_type', 'design_shadow_color', 'design_shadow_size',
+                        'design_shadow_opacity', 'design_gradient', 'design_gradient_opacity',
+                        'design_gradient_coverage', 'design_brand', 'design_brand_color',
+                        'design_position'):
+                val = config.get(key, '')
+                if val:
+                    os.environ[key.upper()] = val
 
             # Import generate_thumbnail from scripts/yt-thumbnail
             import types
