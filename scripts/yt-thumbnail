@@ -283,23 +283,33 @@ def _generate_image_kie(image_prompt):
     """Gera imagem via Kie.ai API (assincrono, polling)."""
     import time
     model = IMAGE_MODEL
-    endpoint = KIE_ENDPOINTS.get(model, '/gpt4o-image/generate')
 
-    if 'flux-kontext' in model:
+    # Modelos que usam /jobs/createTask (novo endpoint unificado)
+    if model in ('z-image',):
+        payload = {
+            'model': model,
+            'input': {
+                'prompt': image_prompt,
+                'aspect_ratio': '16:9'
+            }
+        }
+        endpoint = '/jobs/createTask'
+    elif 'flux-kontext' in model:
         payload = {
             'prompt': image_prompt,
             'model': model,
             'aspectRatio': '16:9',
             'outputFormat': 'jpeg',
         }
+        endpoint = KIE_ENDPOINTS.get(model, '/flux/kontext/generate')
     else:
         payload = {
             'prompt': image_prompt,
             'size': '3:2',
         }
-        # Modelo customizado (ex: google/nano-banana) — passa no payload
         if model not in KIE_ENDPOINTS:
             payload['model'] = model
+        endpoint = KIE_ENDPOINTS.get(model, '/gpt4o-image/generate')
 
     body = json.dumps(payload).encode()
     req = urllib.request.Request(f'{KIE_URL}{endpoint}', data=body)
