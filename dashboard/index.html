@@ -1103,6 +1103,7 @@
           <button class="small" onclick="applyThumbPreset('youtube')" style="padding:8px 16px;background:#ff0000;color:#fff;border:1px solid #ff0000;">YouTube Agressivo</button>
           <button class="small" onclick="applyThumbPreset('clean')" style="padding:8px 16px;background:#222;color:#fff;border:1px solid #555;">Clean</button>
           <button class="small" onclick="applyThumbPreset('neon')" style="padding:8px 16px;background:#0a0a1a;color:#00f5ff;border:1px solid #00f5ff;">Neon</button>
+          <button class="small" onclick="applyThumbPreset('fallback')" style="padding:8px 16px;background:linear-gradient(135deg,#0a0a1a,#1a1a3a);color:#ccc;border:1px dashed #666;">Fallback</button>
         </div>
       </div>
 
@@ -1604,6 +1605,13 @@ function applyThumbPreset(name) {
       highlightEnabled: 'true', shadowType: 'blur', shadowColor: '#00F5FF', shadowSize: 10,
       shadowOpacity: 100, gradient: 'top-left', gradientOpacity: 180, gradientCoverage: 45,
       brand: 'INEMA TDS', brandColor: '#00F5FF', position: 'top-left'
+    },
+    fallback: {
+      font: 'montserrat-extrabold', fontSize: 72, lastLineScale: 0, lineHeight: 84,
+      tracking: 'tight', case: 'upper', textColor: '#FFFFFF', highlightColor: '#FFFFFF',
+      highlightEnabled: 'false', shadowType: 'outline', shadowColor: '#000000', shadowSize: 3,
+      shadowOpacity: 255, gradient: 'none', gradientOpacity: 0, gradientCoverage: 0,
+      brand: 'INEMA TDS', brandColor: '#6366F1', position: 'top-left'
     }
   };
   const p = presets[name];
