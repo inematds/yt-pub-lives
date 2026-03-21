@@ -474,29 +474,93 @@ def wrap_text(text, font, max_width, draw):
     return lines[:3]
 
 
+# Font path mapping
+FONT_MAP = {
+    'montserrat-extrabold': os.path.expanduser('~/.local/share/fonts/Montserrat-ExtraBold.ttf'),
+    'montserrat-black': os.path.expanduser('~/.local/share/fonts/Montserrat-Black.ttf'),
+    'bebas-neue': os.path.expanduser('~/.local/share/fonts/BebasNeue-Regular.ttf'),
+    'anton': os.path.expanduser('~/.local/share/fonts/Anton-Regular.ttf'),
+    'dejavu': '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+}
+
+
 def compose_thumbnail(bg, frase_curta, cores_str, output_path):
-    """Compoe thumbnail final: imagem + texto overlay."""
-    text_color = hex_to_rgb(THUMB_TEXT_COLOR)
-    accent_color = hex_to_rgb(THUMB_ACCENT_COLOR)
-    brand_color = hex_to_rgb(THUMB_BRAND_COLOR)
-    font_size = THUMB_FONT_SIZE
-    position = THUMB_TEXT_POSITION
+    """Compoe thumbnail final: imagem + texto overlay com design configuravel."""
+    # Read design config from env (set by scheduler from CONFIG sheet)
+    design_font = os.environ.get('DESIGN_FONT', 'dejavu')
+    design_font_size = int(os.environ.get('DESIGN_FONT_SIZE', THUMB_FONT_SIZE))
+    design_last_line_scale = int(os.environ.get('DESIGN_LAST_LINE_SCALE', '0'))
+    design_line_height = int(os.environ.get('DESIGN_LINE_HEIGHT', str(design_font_size + 16)))
+    design_tracking = os.environ.get('DESIGN_TRACKING', 'normal')
+    design_case = os.environ.get('DESIGN_CASE', 'upper')
+    design_text_color = hex_to_rgb(os.environ.get('DESIGN_TEXT_COLOR', THUMB_TEXT_COLOR))
+    design_highlight_color = hex_to_rgb(os.environ.get('DESIGN_HIGHLIGHT_COLOR', THUMB_ACCENT_COLOR))
+    design_highlight_enabled = os.environ.get('DESIGN_HIGHLIGHT_ENABLED', 'false') == 'true'
+    design_shadow_type = os.environ.get('DESIGN_SHADOW_TYPE', 'outline')
+    design_shadow_color = hex_to_rgb(os.environ.get('DESIGN_SHADOW_COLOR', '#000000'))
+    design_shadow_size = int(os.environ.get('DESIGN_SHADOW_SIZE', '3'))
+    design_shadow_opacity = int(os.environ.get('DESIGN_SHADOW_OPACITY', '255'))
+    design_gradient = os.environ.get('DESIGN_GRADIENT', 'none')
+    design_gradient_opacity = int(os.environ.get('DESIGN_GRADIENT_OPACITY', '140'))
+    design_gradient_coverage = int(os.environ.get('DESIGN_GRADIENT_COVERAGE', '40'))
+    design_brand = os.environ.get('DESIGN_BRAND', BRAND)
+    design_brand_color = hex_to_rgb(os.environ.get('DESIGN_BRAND_COLOR', THUMB_BRAND_COLOR))
+    design_position = os.environ.get('DESIGN_POSITION', THUMB_TEXT_POSITION)
 
-    draw = ImageDraw.Draw(bg)
+    font_path = FONT_MAP.get(design_font, FONT_MAP['dejavu'])
+    if not os.path.exists(font_path):
+        font_path = FONT_MAP['dejavu']
 
-    # Barra lateral accent
-    draw.rectangle([0, 0, 8, HEIGHT], fill=brand_color)
+    # Apply text case
+    text = frase_curta.upper() if design_case == 'upper' else frase_curta
 
-    # Frase curta (grande e impactante)
-    font = ImageFont.truetype(FONT_PATH, font_size)
+    # Convert to RGBA for compositing
+    bg = bg.convert('RGBA')
+
+    # --- Gradient overlay ---
+    if design_gradient != 'none':
+        gradient = Image.new('RGBA', (WIDTH, HEIGHT), (0, 0, 0, 0))
+        coverage_px = int(WIDTH * design_gradient_coverage / 100)
+        coverage_py = int(HEIGHT * design_gradient_coverage / 100)
+
+        for i in range(max(coverage_px, coverage_py)):
+            alpha = int(design_gradient_opacity * (1 - i / max(coverage_px, coverage_py)))
+            if alpha < 0:
+                alpha = 0
+
+            if design_gradient == 'left':
+                if i < coverage_px:
+                    line = Image.new('RGBA', (1, HEIGHT), (0, 0, 0, alpha))
+                    gradient.paste(line, (i, 0))
+            elif design_gradient == 'top':
+                if i < coverage_py:
+                    line = Image.new('RGBA', (WIDTH, 1), (0, 0, 0, alpha))
+                    gradient.paste(line, (0, i))
+            elif design_gradient == 'top-left':
+                if i < coverage_px:
+                    line = Image.new('RGBA', (1, HEIGHT), (0, 0, 0, alpha))
+                    gradient.paste(line, (i, 0))
+                if i < coverage_py:
+                    line = Image.new('RGBA', (WIDTH, 1), (0, 0, 0, max(0, alpha // 2)))
+                    gradient.paste(line, (0, i))
+            elif design_gradient == 'full-bottom':
+                if i < coverage_py:
+                    y = HEIGHT - 1 - i
+                    line = Image.new('RGBA', (WIDTH, 1), (0, 0, 0, alpha))
+                    gradient.paste(line, (0, y))
+
+        bg = Image.alpha_composite(bg, gradient)
+
+    # --- Text rendering ---
+    font = ImageFont.truetype(font_path, design_font_size)
     max_text_width = int(WIDTH * 0.8)
 
-    lines = wrap_text(frase_curta.upper(), font, max_text_width, draw)
+    draw_temp = ImageDraw.Draw(bg)
+    lines = wrap_text(text, font, max_text_width, draw_temp)
 
-    line_height = font_size + 16
-    total_height = len(lines) * line_height
+    total_height = len(lines) * design_line_height
 
-    # Posicao do texto baseada na config
+    # Position
     positions = {
         'top-left':      (int(WIDTH * 0.10), int(HEIGHT * 0.08)),
         'top-center':    (int(WIDTH * 0.10), int(HEIGHT * 0.08)),
@@ -508,41 +572,82 @@ def compose_thumbnail(bg, frase_curta, cores_str, output_path):
         'bottom-center': (int(WIDTH * 0.10), int(HEIGHT * 0.65)),
         'bottom-right':  (int(WIDTH * 0.10), int(HEIGHT * 0.65)),
     }
-    x_start, y_start = positions.get(position, positions['top-left'])
+    x_start, y_start = positions.get(design_position, positions['top-left'])
 
-    # Alinhamento horizontal
-    if 'right' in position:
-        # Calcula largura maxima das linhas para alinhar a direita
-        max_line_w = max(draw.textbbox((0, 0), l, font=font)[2] for l in lines) if lines else 0
+    # Horizontal alignment
+    if 'right' in design_position:
+        max_line_w = max(draw_temp.textbbox((0, 0), l, font=font)[2] for l in lines) if lines else 0
         x_start = WIDTH - max_line_w - int(WIDTH * 0.10)
-    elif 'center' in position and 'left' not in position and 'right' not in position:
-        max_line_w = max(draw.textbbox((0, 0), l, font=font)[2] for l in lines) if lines else 0
+    elif 'center' in design_position and 'left' not in design_position and 'right' not in design_position:
+        max_line_w = max(draw_temp.textbbox((0, 0), l, font=font)[2] for l in lines) if lines else 0
         x_start = int((WIDTH - max_line_w) / 2)
+
+    # --- Shadow / Outline ---
+    if design_shadow_type == 'blur':
+        # Create shadow layer
+        shadow_layer = Image.new('RGBA', (WIDTH, HEIGHT), (0, 0, 0, 0))
+        shadow_draw = ImageDraw.Draw(shadow_layer)
+        shadow_fill = (*design_shadow_color, design_shadow_opacity)
+
+        for i, line in enumerate(lines):
+            y = y_start + i * design_line_height
+            lx = x_start
+            if 'center' in design_position and 'left' not in design_position and 'right' not in design_position:
+                lw = shadow_draw.textbbox((0, 0), line, font=font)[2]
+                lx = int((WIDTH - lw) / 2)
+            cur_font = font
+            if i == len(lines) - 1 and design_last_line_scale > 0:
+                bigger = int(design_font_size * (1 + design_last_line_scale / 100))
+                cur_font = ImageFont.truetype(font_path, bigger)
+            shadow_draw.text((lx + 2, y + 2), line, font=cur_font, fill=shadow_fill)
+
+        shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(radius=design_shadow_size))
+        bg = Image.alpha_composite(bg, shadow_layer)
 
     draw = ImageDraw.Draw(bg)
 
-    # Texto com outline/sombra forte
-    for i, line in enumerate(lines):
-        y = y_start + i * line_height
-        lx = x_start
-        if 'center' in position and 'left' not in position and 'right' not in position:
-            lw = draw.textbbox((0, 0), line, font=font)[2]
-            max_line_w = max(draw.textbbox((0, 0), l, font=font)[2] for l in lines)
-            lx = int((WIDTH - lw) / 2)
-        # Outline preto
-        for dx in range(-3, 4):
-            for dy in range(-3, 4):
-                if dx != 0 or dy != 0:
-                    draw.text((lx + dx, y + dy), line, font=font, fill=(0, 0, 0))
-        draw.text((lx, y), line, font=font, fill=text_color)
+    if design_shadow_type == 'outline':
+        for i, line in enumerate(lines):
+            y = y_start + i * design_line_height
+            lx = x_start
+            if 'center' in design_position and 'left' not in design_position and 'right' not in design_position:
+                lw = draw.textbbox((0, 0), line, font=font)[2]
+                lx = int((WIDTH - lw) / 2)
+            cur_font = font
+            if i == len(lines) - 1 and design_last_line_scale > 0:
+                bigger = int(design_font_size * (1 + design_last_line_scale / 100))
+                cur_font = ImageFont.truetype(font_path, bigger)
+            sz = design_shadow_size
+            for dx in range(-sz, sz + 1):
+                for dy in range(-sz, sz + 1):
+                    if dx != 0 or dy != 0:
+                        draw.text((lx + dx, y + dy), line, font=cur_font, fill=design_shadow_color)
 
-    # Linha accent abaixo do texto
+    # --- Main text ---
+    for i, line in enumerate(lines):
+        y = y_start + i * design_line_height
+        lx = x_start
+        if 'center' in design_position and 'left' not in design_position and 'right' not in design_position:
+            lw = draw.textbbox((0, 0), line, font=font)[2]
+            lx = int((WIDTH - lw) / 2)
+
+        is_last = (i == len(lines) - 1)
+        cur_font = font
+        if is_last and design_last_line_scale > 0:
+            bigger = int(design_font_size * (1 + design_last_line_scale / 100))
+            cur_font = ImageFont.truetype(font_path, bigger)
+
+        color = design_highlight_color if (is_last and design_highlight_enabled) else design_text_color
+        draw.text((lx, y), line, font=cur_font, fill=color)
+
+    # --- Accent line ---
+    accent_color = hex_to_rgb(THUMB_ACCENT_COLOR)
     accent_y = y_start + total_height + 8
     draw.rectangle([x_start, accent_y, x_start + 250, accent_y + 5], fill=accent_color)
 
-    # Brand pill no canto inferior direito
-    brand_font = ImageFont.truetype(FONT_PATH, 26)
-    bbox = draw.textbbox((0, 0), BRAND, font=brand_font)
+    # --- Brand pill ---
+    brand_font = ImageFont.truetype(font_path, 26)
+    bbox = draw.textbbox((0, 0), design_brand, font=brand_font)
     brand_w = bbox[2] - bbox[0]
     bx = WIDTH - brand_w - 45
     by = HEIGHT - 55
@@ -553,13 +658,12 @@ def compose_thumbnail(bg, frase_curta, cores_str, output_path):
         [bx - 14, by - 8, bx + brand_w + 14, by + 34],
         radius=8, fill=(0, 0, 0, 180)
     )
-    bg = bg.convert('RGBA')
-    bg = Image.alpha_composite(bg, bg_pill).convert('RGB')
+    bg = Image.alpha_composite(bg, bg_pill)
     draw = ImageDraw.Draw(bg)
-    draw.text((bx, by), BRAND, font=brand_font, fill=brand_color)
+    draw.text((bx, by), design_brand, font=brand_font, fill=design_brand_color)
 
-    # Salvar
-    bg.save(output_path, 'JPEG', quality=92)
+    # Save as RGB JPEG
+    bg.convert('RGB').save(output_path, 'JPEG', quality=92)
     return output_path
 
 

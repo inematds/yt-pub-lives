@@ -795,6 +795,7 @@
         <button class="config-tab" onclick="showConfigTab('apis', this)">APIs & IA</button>
         <button class="config-tab" onclick="showConfigTab('prompts', this)">Prompts</button>
         <button class="config-tab" onclick="showConfigTab('manutencao', this)">Manutencao</button>
+        <button class="config-tab" onclick="showConfigTab('design', this)">Design Thumb</button>
       </div>
       <button onclick="saveActiveTab(this)" id="btnSaveTop" style="padding:6px 20px;">Salvar</button>
     </div>
@@ -1093,6 +1094,180 @@
       </div>
     </div>
 
+    <!-- Tab: Design Thumb -->
+    <div class="config-tab-content" id="cfgTab_design">
+      <div class="config-section">
+        <h3>Presets</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+          <button class="small" onclick="applyThumbPreset('premium')" style="padding:8px 16px;background:linear-gradient(135deg,#1a1a2e,#16213e);color:#D9B65B;border:1px solid #D9B65B;">Premium</button>
+          <button class="small" onclick="applyThumbPreset('youtube')" style="padding:8px 16px;background:#ff0000;color:#fff;border:1px solid #ff0000;">YouTube Agressivo</button>
+          <button class="small" onclick="applyThumbPreset('clean')" style="padding:8px 16px;background:#222;color:#fff;border:1px solid #555;">Clean</button>
+          <button class="small" onclick="applyThumbPreset('neon')" style="padding:8px 16px;background:#0a0a1a;color:#00f5ff;border:1px solid #00f5ff;">Neon</button>
+        </div>
+      </div>
+
+      <div class="config-section">
+        <h3>Tipografia</h3>
+        <div class="config-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+          <div class="config-field">
+            <label>Fonte</label>
+            <select id="cfgDesignFont">
+              <option value="montserrat-extrabold">Montserrat ExtraBold</option>
+              <option value="montserrat-black">Montserrat Black</option>
+              <option value="bebas-neue">Bebas Neue</option>
+              <option value="anton">Anton</option>
+              <option value="dejavu">DejaVu Sans Bold</option>
+            </select>
+          </div>
+          <div class="config-field">
+            <label>Tamanho titulo (px)</label>
+            <input type="number" id="cfgDesignFontSize" value="78" min="40" max="140" step="2">
+          </div>
+          <div class="config-field">
+            <label>Ultima linha maior (%)</label>
+            <input type="number" id="cfgDesignLastLineScale" value="0" min="0" max="50" step="5">
+            <div class="hint">0 = mesmo tamanho. 15 = 15% maior</div>
+          </div>
+        </div>
+        <div class="config-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-top:8px;">
+          <div class="config-field">
+            <label>Entrelinha (px)</label>
+            <input type="number" id="cfgDesignLineHeight" value="94" min="50" max="140" step="2">
+          </div>
+          <div class="config-field">
+            <label>Tracking</label>
+            <select id="cfgDesignTracking">
+              <option value="normal">Normal</option>
+              <option value="tight">Apertado (-2px)</option>
+              <option value="very-tight">Muito apertado (-4px)</option>
+            </select>
+          </div>
+          <div class="config-field">
+            <label>Caixa</label>
+            <select id="cfgDesignCase">
+              <option value="upper">MAIUSCULAS</option>
+              <option value="original">Original</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="config-section">
+        <h3>Cores</h3>
+        <div class="config-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+          <div class="config-field">
+            <label>Cor texto principal</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="color" id="cfgDesignTextColor" value="#F5F3EE" style="width:40px;height:32px;border:1px solid var(--border);border-radius:4px;cursor:pointer;">
+              <input type="text" id="cfgDesignTextColorHex" value="#F5F3EE" style="width:90px;font-family:monospace;font-size:0.8rem;" oninput="document.getElementById('cfgDesignTextColor').value=this.value">
+            </div>
+          </div>
+          <div class="config-field">
+            <label>Cor ultima linha (destaque)</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="color" id="cfgDesignHighlightColor" value="#D9B65B" style="width:40px;height:32px;border:1px solid var(--border);border-radius:4px;cursor:pointer;">
+              <input type="text" id="cfgDesignHighlightColorHex" value="#D9B65B" style="width:90px;font-family:monospace;font-size:0.8rem;" oninput="document.getElementById('cfgDesignHighlightColor').value=this.value">
+            </div>
+          </div>
+          <div class="config-field">
+            <label>Usar cor destaque na ultima linha</label>
+            <select id="cfgDesignHighlightEnabled">
+              <option value="true">Sim</option>
+              <option value="false">Nao</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="config-section">
+        <h3>Sombra e Contorno</h3>
+        <div class="config-grid" style="grid-template-columns: 1fr 1fr 1fr 1fr;">
+          <div class="config-field">
+            <label>Tipo sombra</label>
+            <select id="cfgDesignShadowType">
+              <option value="blur">Difusa (blur)</option>
+              <option value="outline">Contorno duro</option>
+              <option value="none">Nenhuma</option>
+            </select>
+          </div>
+          <div class="config-field">
+            <label>Cor sombra</label>
+            <input type="color" id="cfgDesignShadowColor" value="#000000" style="width:40px;height:32px;border:1px solid var(--border);border-radius:4px;cursor:pointer;">
+          </div>
+          <div class="config-field">
+            <label>Blur/Espessura</label>
+            <input type="number" id="cfgDesignShadowSize" value="5" min="1" max="15" step="1">
+          </div>
+          <div class="config-field">
+            <label>Opacidade sombra</label>
+            <input type="number" id="cfgDesignShadowOpacity" value="180" min="0" max="255" step="10">
+            <div class="hint">0-255</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="config-section">
+        <h3>Fundo do Texto</h3>
+        <div class="config-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+          <div class="config-field">
+            <label>Degrade escuro</label>
+            <select id="cfgDesignGradient">
+              <option value="none">Nenhum</option>
+              <option value="left">Esquerda</option>
+              <option value="top-left">Topo esquerdo</option>
+              <option value="top">Topo</option>
+              <option value="full-bottom">Base completa</option>
+            </select>
+          </div>
+          <div class="config-field">
+            <label>Opacidade degrade</label>
+            <input type="number" id="cfgDesignGradientOpacity" value="140" min="0" max="255" step="10">
+            <div class="hint">0-255</div>
+          </div>
+          <div class="config-field">
+            <label>Cobertura (%)</label>
+            <input type="number" id="cfgDesignGradientCoverage" value="40" min="10" max="80" step="5">
+            <div class="hint">% da imagem coberta</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="config-section">
+        <h3>Marca</h3>
+        <div class="config-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+          <div class="config-field">
+            <label>Texto da marca</label>
+            <input type="text" id="cfgDesignBrand" value="INEMA TDS" placeholder="INEMA TDS">
+          </div>
+          <div class="config-field">
+            <label>Cor da marca</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="color" id="cfgDesignBrandColor" value="#6366F1" style="width:40px;height:32px;border:1px solid var(--border);border-radius:4px;cursor:pointer;">
+              <input type="text" id="cfgDesignBrandColorHex" value="#6366F1" style="width:90px;font-family:monospace;font-size:0.8rem;" oninput="document.getElementById('cfgDesignBrandColor').value=this.value">
+            </div>
+          </div>
+          <div class="config-field">
+            <label>Posicao do texto</label>
+            <select id="cfgDesignPosition">
+              <option value="top-left">Topo Esquerda</option>
+              <option value="top-center">Topo Centro</option>
+              <option value="top-right">Topo Direita</option>
+              <option value="center-left">Centro Esquerda</option>
+              <option value="center">Centro</option>
+              <option value="center-right">Centro Direita</option>
+              <option value="bottom-left">Base Esquerda</option>
+              <option value="bottom-center">Base Centro</option>
+              <option value="bottom-right">Base Direita</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: 8px;">
+        <button onclick="saveDesign(this)">Salvar Design</button>
+      </div>
+    </div>
+
   </div>
 
   <!-- Tabs -->
@@ -1296,6 +1471,7 @@ function saveActiveTab(btn) {
   if (_activeConfigTab === 'horarios') saveHorarios(btn);
   else if (_activeConfigTab === 'apis') saveApis(btn);
   else if (_activeConfigTab === 'prompts') savePrompts(btn);
+  else if (_activeConfigTab === 'design') saveDesign(btn);
 }
 
 // --- Dynamic API fields ---
@@ -1369,6 +1545,91 @@ function updateThumbFields() {
   }
 
   container.innerHTML = html;
+}
+
+function saveDesign(btn) {
+  _saveWithFeedback(btn, () => fetchJson('/api/config', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      design_font: document.getElementById('cfgDesignFont').value,
+      design_font_size: document.getElementById('cfgDesignFontSize').value,
+      design_last_line_scale: document.getElementById('cfgDesignLastLineScale').value,
+      design_line_height: document.getElementById('cfgDesignLineHeight').value,
+      design_tracking: document.getElementById('cfgDesignTracking').value,
+      design_case: document.getElementById('cfgDesignCase').value,
+      design_text_color: document.getElementById('cfgDesignTextColor').value,
+      design_highlight_color: document.getElementById('cfgDesignHighlightColor').value,
+      design_highlight_enabled: document.getElementById('cfgDesignHighlightEnabled').value,
+      design_shadow_type: document.getElementById('cfgDesignShadowType').value,
+      design_shadow_color: document.getElementById('cfgDesignShadowColor').value,
+      design_shadow_size: document.getElementById('cfgDesignShadowSize').value,
+      design_shadow_opacity: document.getElementById('cfgDesignShadowOpacity').value,
+      design_gradient: document.getElementById('cfgDesignGradient').value,
+      design_gradient_opacity: document.getElementById('cfgDesignGradientOpacity').value,
+      design_gradient_coverage: document.getElementById('cfgDesignGradientCoverage').value,
+      design_brand: document.getElementById('cfgDesignBrand').value,
+      design_brand_color: document.getElementById('cfgDesignBrandColor').value,
+      design_position: document.getElementById('cfgDesignPosition').value
+    })
+  }));
+}
+
+function applyThumbPreset(name) {
+  const presets = {
+    premium: {
+      font: 'montserrat-extrabold', fontSize: 82, lastLineScale: 15, lineHeight: 90,
+      tracking: 'tight', case: 'upper', textColor: '#F5F3EE', highlightColor: '#D9B65B',
+      highlightEnabled: 'true', shadowType: 'blur', shadowColor: '#000000', shadowSize: 8,
+      shadowOpacity: 180, gradient: 'top-left', gradientOpacity: 160, gradientCoverage: 40,
+      brand: 'INEMA TDS', brandColor: '#D9B65B', position: 'top-left'
+    },
+    youtube: {
+      font: 'anton', fontSize: 90, lastLineScale: 0, lineHeight: 96,
+      tracking: 'normal', case: 'upper', textColor: '#FFFFFF', highlightColor: '#FFFF00',
+      highlightEnabled: 'true', shadowType: 'outline', shadowColor: '#000000', shadowSize: 4,
+      shadowOpacity: 255, gradient: 'none', gradientOpacity: 0, gradientCoverage: 0,
+      brand: 'INEMA TDS', brandColor: '#FF0000', position: 'center-left'
+    },
+    clean: {
+      font: 'montserrat-extrabold', fontSize: 76, lastLineScale: 0, lineHeight: 88,
+      tracking: 'tight', case: 'upper', textColor: '#FFFFFF', highlightColor: '#FFFFFF',
+      highlightEnabled: 'false', shadowType: 'blur', shadowColor: '#000000', shadowSize: 6,
+      shadowOpacity: 150, gradient: 'left', gradientOpacity: 120, gradientCoverage: 35,
+      brand: 'INEMA TDS', brandColor: '#6366F1', position: 'top-left'
+    },
+    neon: {
+      font: 'bebas-neue', fontSize: 88, lastLineScale: 10, lineHeight: 92,
+      tracking: 'normal', case: 'upper', textColor: '#00F5FF', highlightColor: '#FF00FF',
+      highlightEnabled: 'true', shadowType: 'blur', shadowColor: '#00F5FF', shadowSize: 10,
+      shadowOpacity: 100, gradient: 'top-left', gradientOpacity: 180, gradientCoverage: 45,
+      brand: 'INEMA TDS', brandColor: '#00F5FF', position: 'top-left'
+    }
+  };
+  const p = presets[name];
+  if (!p) return;
+  document.getElementById('cfgDesignFont').value = p.font;
+  document.getElementById('cfgDesignFontSize').value = p.fontSize;
+  document.getElementById('cfgDesignLastLineScale').value = p.lastLineScale;
+  document.getElementById('cfgDesignLineHeight').value = p.lineHeight;
+  document.getElementById('cfgDesignTracking').value = p.tracking;
+  document.getElementById('cfgDesignCase').value = p.case;
+  document.getElementById('cfgDesignTextColor').value = p.textColor;
+  document.getElementById('cfgDesignTextColorHex').value = p.textColor;
+  document.getElementById('cfgDesignHighlightColor').value = p.highlightColor;
+  document.getElementById('cfgDesignHighlightColorHex').value = p.highlightColor;
+  document.getElementById('cfgDesignHighlightEnabled').value = p.highlightEnabled;
+  document.getElementById('cfgDesignShadowType').value = p.shadowType;
+  document.getElementById('cfgDesignShadowColor').value = p.shadowColor;
+  document.getElementById('cfgDesignShadowSize').value = p.shadowSize;
+  document.getElementById('cfgDesignShadowOpacity').value = p.shadowOpacity;
+  document.getElementById('cfgDesignGradient').value = p.gradient;
+  document.getElementById('cfgDesignGradientOpacity').value = p.gradientOpacity;
+  document.getElementById('cfgDesignGradientCoverage').value = p.gradientCoverage;
+  document.getElementById('cfgDesignBrand').value = p.brand;
+  document.getElementById('cfgDesignBrandColor').value = p.brandColor;
+  document.getElementById('cfgDesignBrandColorHex').value = p.brandColor;
+  document.getElementById('cfgDesignPosition').value = p.position;
 }
 
 // --- Hour Picker ---
@@ -1982,6 +2243,27 @@ async function loadConfig() {
     document.getElementById('cfgThumbBrandColor').value = c.thumb_brand_color;
     document.getElementById('cfgThumbBrandColorHex').value = c.thumb_brand_color;
   }
+
+  // Design Thumb
+  setVal('cfgDesignFont', c.design_font);
+  setVal('cfgDesignFontSize', c.design_font_size);
+  setVal('cfgDesignLastLineScale', c.design_last_line_scale);
+  setVal('cfgDesignLineHeight', c.design_line_height);
+  setVal('cfgDesignTracking', c.design_tracking);
+  setVal('cfgDesignCase', c.design_case);
+  if (c.design_text_color) { setVal('cfgDesignTextColor', c.design_text_color); setVal('cfgDesignTextColorHex', c.design_text_color); }
+  if (c.design_highlight_color) { setVal('cfgDesignHighlightColor', c.design_highlight_color); setVal('cfgDesignHighlightColorHex', c.design_highlight_color); }
+  setVal('cfgDesignHighlightEnabled', c.design_highlight_enabled);
+  setVal('cfgDesignShadowType', c.design_shadow_type);
+  if (c.design_shadow_color) setVal('cfgDesignShadowColor', c.design_shadow_color);
+  setVal('cfgDesignShadowSize', c.design_shadow_size);
+  setVal('cfgDesignShadowOpacity', c.design_shadow_opacity);
+  setVal('cfgDesignGradient', c.design_gradient);
+  setVal('cfgDesignGradientOpacity', c.design_gradient_opacity);
+  setVal('cfgDesignGradientCoverage', c.design_gradient_coverage);
+  setVal('cfgDesignBrand', c.design_brand);
+  if (c.design_brand_color) { setVal('cfgDesignBrandColor', c.design_brand_color); setVal('cfgDesignBrandColorHex', c.design_brand_color); }
+  setVal('cfgDesignPosition', c.design_position);
 
   // Pipeline state
   cortesPaused = c.pipeline_cortes_paused === 'true';
