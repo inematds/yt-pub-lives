@@ -1098,18 +1098,49 @@
     <div class="config-tab-content" id="cfgTab_design">
       <div class="config-section">
         <h3>Presets <span id="activePresetLabel" style="font-size:0.7em;color:var(--accent);margin-left:8px;"></span></h3>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
-          <button class="small preset-btn" data-preset="premium" onclick="applyThumbPreset('premium')" style="padding:6px 14px;background:linear-gradient(135deg,#1a1a2e,#16213e);color:#D9B65B;border:1px solid #D9B65B;">Premium</button>
-          <button class="small preset-btn" data-preset="youtube" onclick="applyThumbPreset('youtube')" style="padding:6px 14px;background:#ff0000;color:#fff;border:1px solid #ff0000;">YouTube Bold</button>
-          <button class="small preset-btn" data-preset="clean" onclick="applyThumbPreset('clean')" style="padding:6px 14px;background:#222;color:#fff;border:1px solid #555;">Clean</button>
-          <button class="small preset-btn" data-preset="neon" onclick="applyThumbPreset('neon')" style="padding:6px 14px;background:#0a0a1a;color:#00f5ff;border:1px solid #00f5ff;">Neon</button>
-          <button class="small preset-btn" data-preset="fallback" onclick="applyThumbPreset('fallback')" style="padding:6px 14px;background:linear-gradient(135deg,#0a0a1a,#1a1a3a);color:#ccc;border:1px dashed #666;">Fallback</button>
-          <button class="small preset-btn" data-preset="mrbeast" onclick="applyThumbPreset('mrbeast')" style="padding:6px 14px;background:#ffd700;color:#000;border:1px solid #ffd700;font-weight:bold;">MrBeast</button>
-          <button class="small preset-btn" data-preset="techreview" onclick="applyThumbPreset('techreview')" style="padding:6px 14px;background:#1e3a5f;color:#4fc3f7;border:1px solid #4fc3f7;">Tech Review</button>
-          <button class="small preset-btn" data-preset="tutorial" onclick="applyThumbPreset('tutorial')" style="padding:6px 14px;background:#2e7d32;color:#fff;border:1px solid #4caf50;">Tutorial</button>
-          <button class="small preset-btn" data-preset="breaking" onclick="applyThumbPreset('breaking')" style="padding:6px 14px;background:#b71c1c;color:#ffeb3b;border:1px solid #ffeb3b;">Breaking News</button>
-          <button class="small preset-btn" data-preset="minimal" onclick="applyThumbPreset('minimal')" style="padding:6px 14px;background:#fafafa;color:#222;border:1px solid #ccc;">Minimalista</button>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;" id="presetsMain">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+            <input type="checkbox" class="random-preset" data-preset="premium" title="Incluir no random">
+            <button class="small preset-btn" data-preset="premium" onclick="applyThumbPreset('premium')" style="padding:6px 14px;background:linear-gradient(135deg,#1a1a2e,#16213e);color:#D9B65B;border:1px solid #D9B65B;">Premium</button>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+            <input type="checkbox" class="random-preset" data-preset="youtube" title="Incluir no random">
+            <button class="small preset-btn" data-preset="youtube" onclick="applyThumbPreset('youtube')" style="padding:6px 14px;background:#ff0000;color:#fff;border:1px solid #ff0000;">YouTube Bold</button>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+            <input type="checkbox" class="random-preset" data-preset="clean" title="Incluir no random">
+            <button class="small preset-btn" data-preset="clean" onclick="applyThumbPreset('clean')" style="padding:6px 14px;background:#222;color:#fff;border:1px solid #555;">Clean</button>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+            <input type="checkbox" class="random-preset" data-preset="neon" title="Incluir no random">
+            <button class="small preset-btn" data-preset="neon" onclick="applyThumbPreset('neon')" style="padding:6px 14px;background:#0a0a1a;color:#00f5ff;border:1px solid #00f5ff;">Neon</button>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+            <input type="checkbox" class="random-preset" data-preset="fallback" title="Incluir no random">
+            <button class="small preset-btn" data-preset="fallback" onclick="applyThumbPreset('fallback')" style="padding:6px 14px;background:linear-gradient(135deg,#0a0a1a,#1a1a3a);color:#ccc;border:1px dashed #666;">Fallback</button>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+            <input type="checkbox" class="random-preset" data-preset="mrbeast" title="Incluir no random">
+            <button class="small preset-btn" data-preset="mrbeast" onclick="applyThumbPreset('mrbeast')" style="padding:6px 14px;background:#ffd700;color:#000;border:1px solid #ffd700;font-weight:bold;">MrBeast</button>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+            <input type="checkbox" class="random-preset" data-preset="techreview" title="Incluir no random">
+            <button class="small preset-btn" data-preset="techreview" onclick="applyThumbPreset('techreview')" style="padding:6px 14px;background:#1e3a5f;color:#4fc3f7;border:1px solid #4fc3f7;">Tech Review</button>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+            <input type="checkbox" class="random-preset" data-preset="tutorial" title="Incluir no random">
+            <button class="small preset-btn" data-preset="tutorial" onclick="applyThumbPreset('tutorial')" style="padding:6px 14px;background:#2e7d32;color:#fff;border:1px solid #4caf50;">Tutorial</button>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+            <input type="checkbox" class="random-preset" data-preset="breaking" title="Incluir no random">
+            <button class="small preset-btn" data-preset="breaking" onclick="applyThumbPreset('breaking')" style="padding:6px 14px;background:#b71c1c;color:#ffeb3b;border:1px solid #ffeb3b;">Breaking News</button>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+            <input type="checkbox" class="random-preset" data-preset="minimal" title="Incluir no random">
+            <button class="small preset-btn" data-preset="minimal" onclick="applyThumbPreset('minimal')" style="padding:6px 14px;background:#fafafa;color:#222;border:1px solid #ccc;">Minimalista</button>
+          </div>
         </div>
+        <div class="hint" style="margin-bottom:8px;">Marque os checkboxes para ativar modo random — cada publicacao usa um preset diferente dos selecionados</div>
         <div style="display:flex;gap:8px;align-items:center;">
           <label style="font-size:0.8em;color:var(--muted);">Preset para fallback (sem imagem IA):</label>
           <select id="cfgDesignFallbackPreset" style="padding:4px 8px;font-size:0.8rem;">
@@ -1689,7 +1720,8 @@ function _getDesignData() {
     design_brand: g('cfgDesignBrand'), design_brand_font: g('cfgDesignBrandFont'),
     design_brand_size: g('cfgDesignBrandSize'), design_brand_color: g('cfgDesignBrandColor'),
     design_brand_position: g('cfgDesignBrandPosition'),
-    design_position: g('cfgDesignPosition'), design_fallback_preset: g('cfgDesignFallbackPreset')
+    design_position: g('cfgDesignPosition'), design_fallback_preset: g('cfgDesignFallbackPreset'),
+    design_random_presets: Array.from(document.querySelectorAll('.random-preset:checked')).map(c => c.dataset.preset).join(',')
   };
 }
 
@@ -2490,6 +2522,13 @@ async function loadConfig() {
   setVal('cfgDesignBrandPosition', c.design_brand_position);
   setVal('cfgDesignPosition', c.design_position);
   setVal('cfgDesignFallbackPreset', c.design_fallback_preset);
+  // Restore random preset checkboxes
+  if (c.design_random_presets) {
+    const randoms = c.design_random_presets.split(',');
+    document.querySelectorAll('.random-preset').forEach(cb => {
+      cb.checked = randoms.includes(cb.dataset.preset);
+    });
+  }
 
   // Pipeline state
   cortesPaused = c.pipeline_cortes_paused === 'true';

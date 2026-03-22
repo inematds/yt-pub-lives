@@ -432,6 +432,16 @@ def handle_thumbnail(video_id, title, description, config):
                 if val:
                     os.environ[key.upper()] = val
 
+            # Random preset: se tem presets selecionados, sorteia um
+            import random
+            random_presets_str = config.get('design_random_presets', '')
+            if random_presets_str:
+                random_list = [p.strip() for p in random_presets_str.split(',') if p.strip()]
+                if random_list:
+                    chosen = random.choice(random_list)
+                    os.environ['DESIGN_RANDOM_PRESET'] = chosen
+                    log(f'  Random preset: {chosen} (de {len(random_list)} opcoes)')
+
             # Import generate_thumbnail from scripts/yt-thumbnail
             import types
             script_path = os.path.join(SCRIPTS_DIR, 'yt-thumbnail')
