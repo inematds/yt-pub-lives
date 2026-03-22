@@ -315,17 +315,37 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if not api_key:
             api_key = os.environ.get('PIRAMYD_API_KEY', '')
 
-        # Thumbnail API
+        # Thumbnail API - testa o provider configurado
         try:
-            if api_key:
-                payload = json.dumps({'prompt': 'test', 'model': 'flux2-klein-4b', 'width': 64, 'height': 64}).encode()
-                req = urllib.request.Request('https://api.piramyd.cloud/v1/images/generations', data=payload)
-                req.add_header('Content-Type', 'application/json')
-                req.add_header('Authorization', f'Bearer {api_key}')
-                urllib.request.urlopen(req, timeout=15)
-                checks['api_thumb'] = {'ok': True, 'detail': 'ok'}
+            config_result = sheets_get('CONFIG!A1:B50')
+            cfg = {}
+            for row in config_result.get('values', [])[1:]:
+                if len(row) >= 2:
+                    cfg[row[0]] = row[1]
+            img_provider = cfg.get('thumb_image_provider', 'piramyd')
+
+            if img_provider == 'kie':
+                kie_key = cfg.get('kie_api_key', '')
+                if kie_key:
+                    # Testar Kie.ai listando jobs (leve, sem gerar imagem)
+                    req = urllib.request.Request('https://api.kie.ai/api/v1/jobs/recordInfo?taskId=test')
+                    req.add_header('Authorization', f'Bearer {kie_key}')
+                    urllib.request.urlopen(req, timeout=10)
+                    checks['api_thumb'] = {'ok': True, 'detail': f'kie ok'}
+                else:
+                    checks['api_thumb'] = {'ok': False, 'detail': 'sem kie_api_key'}
+            elif img_provider == 'piramyd':
+                if api_key:
+                    payload = json.dumps({'model': 'chatgpt-4.1', 'messages': [{'role': 'user', 'content': 'ok'}], 'max_tokens': 1}).encode()
+                    req = urllib.request.Request('https://api.piramyd.cloud/v1/chat/completions', data=payload)
+                    req.add_header('Content-Type', 'application/json')
+                    req.add_header('Authorization', f'Bearer {api_key}')
+                    urllib.request.urlopen(req, timeout=15)
+                    checks['api_thumb'] = {'ok': True, 'detail': 'piramyd ok'}
+                else:
+                    checks['api_thumb'] = {'ok': False, 'detail': 'sem piramyd key'}
             else:
-                checks['api_thumb'] = {'ok': False, 'detail': 'sem api key'}
+                checks['api_thumb'] = {'ok': True, 'detail': f'{img_provider} (sem teste)'}
         except Exception as e:
             checks['api_thumb'] = {'ok': False, 'detail': str(e)[:80]}
 
