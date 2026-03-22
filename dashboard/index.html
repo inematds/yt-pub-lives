@@ -1098,92 +1098,29 @@
     <div class="config-tab-content" id="cfgTab_design">
       <div class="config-section">
         <h3>Presets <span id="activePresetLabel" style="font-size:0.7em;color:var(--accent);margin-left:8px;"></span></h3>
-        <div id="presetsMain">
-          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;">
-            <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
-              <input type="checkbox" class="random-preset" data-preset="premium" title="Random">
-              <button class="small preset-btn" data-preset="premium" onclick="applyThumbPreset('premium')" style="padding:4px 10px;font-size:0.75em;background:linear-gradient(135deg,#1a1a2e,#16213e);color:#D9B65B;border:1px solid #D9B65B;">Premium</button>
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
-              <input type="checkbox" class="random-preset" data-preset="youtube" title="Random">
-              <button class="small preset-btn" data-preset="youtube" onclick="applyThumbPreset('youtube')" style="padding:4px 10px;font-size:0.75em;background:#ff0000;color:#fff;border:1px solid #ff0000;">YouTube Bold</button>
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
-              <input type="checkbox" class="random-preset" data-preset="clean" title="Random">
-              <button class="small preset-btn" data-preset="clean" onclick="applyThumbPreset('clean')" style="padding:4px 10px;font-size:0.75em;background:#222;color:#fff;border:1px solid #555;">Clean</button>
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
-              <input type="checkbox" class="random-preset" data-preset="neon" title="Random">
-              <button class="small preset-btn" data-preset="neon" onclick="applyThumbPreset('neon')" style="padding:4px 10px;font-size:0.75em;background:#0a0a1a;color:#00f5ff;border:1px solid #00f5ff;">Neon</button>
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
-              <input type="checkbox" class="random-preset" data-preset="fallback" title="Random">
-              <button class="small preset-btn" data-preset="fallback" onclick="applyThumbPreset('fallback')" style="padding:4px 10px;font-size:0.75em;background:#1a1a2a;color:#ccc;border:1px dashed #666;">Fallback</button>
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
-              <input type="checkbox" class="random-preset" data-preset="mrbeast" title="Random">
-              <button class="small preset-btn" data-preset="mrbeast" onclick="applyThumbPreset('mrbeast')" style="padding:4px 10px;font-size:0.75em;background:#ffd700;color:#000;border:1px solid #ffd700;">MrBeast</button>
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
-              <input type="checkbox" class="random-preset" data-preset="techreview" title="Random">
-              <button class="small preset-btn" data-preset="techreview" onclick="applyThumbPreset('techreview')" style="padding:4px 10px;font-size:0.75em;background:#1e3a5f;color:#4fc3f7;border:1px solid #4fc3f7;">Tech Review</button>
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
-              <input type="checkbox" class="random-preset" data-preset="tutorial" title="Random">
-              <button class="small preset-btn" data-preset="tutorial" onclick="applyThumbPreset('tutorial')" style="padding:4px 10px;font-size:0.75em;background:#2e7d32;color:#fff;border:1px solid #4caf50;">Tutorial</button>
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
-              <input type="checkbox" class="random-preset" data-preset="breaking" title="Random">
-              <button class="small preset-btn" data-preset="breaking" onclick="applyThumbPreset('breaking')" style="padding:4px 10px;font-size:0.75em;background:#b71c1c;color:#ffeb3b;border:1px solid #ffeb3b;">Breaking</button>
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
-              <input type="checkbox" class="random-preset" data-preset="minimal" title="Random">
-              <button class="small preset-btn" data-preset="minimal" onclick="applyThumbPreset('minimal')" style="padding:4px 10px;font-size:0.75em;background:#fafafa;color:#222;border:1px solid #ccc;">Minimal</button>
-            </div>
-          </div>
-          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">
-            <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
-              <input type="checkbox" class="random-preset" data-preset="cinematic" title="Random">
-              <button class="small preset-btn" data-preset="cinematic" onclick="applyThumbPreset('cinematic')" style="padding:4px 10px;font-size:0.75em;background:#0D0D1A;color:#F5A623;border:1px solid #F5A623;">Cinematic</button>
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
-              <input type="checkbox" class="random-preset" data-preset="gradient" title="Random">
-              <button class="small preset-btn" data-preset="gradient" onclick="applyThumbPreset('gradient')" style="padding:4px 10px;font-size:0.75em;background:#0F0F0F;color:transparent;border:1px solid #8B00FF;background-clip:text;-webkit-background-clip:text;background-image:linear-gradient(135deg,#8B00FF,#FF007F);-webkit-text-fill-color:transparent;">Gradient</button>
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
-              <input type="checkbox" class="random-preset" data-preset="splitscreen" title="Random">
-              <button class="small preset-btn" data-preset="splitscreen" onclick="applyThumbPreset('splitscreen')" style="padding:4px 10px;font-size:0.75em;background:linear-gradient(90deg,#E63946 50%,#1D3557 50%);color:#fff;border:1px solid #fff;">Split VS</button>
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
-              <input type="checkbox" class="random-preset" data-preset="colorpop" title="Random">
-              <button class="small preset-btn" data-preset="colorpop" onclick="applyThumbPreset('colorpop')" style="padding:4px 10px;font-size:0.75em;background:#222;color:#FF1C1C;border:1px solid #FF1C1C;">Color Pop</button>
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
-              <input type="checkbox" class="random-preset" data-preset="retro" title="Random">
-              <button class="small preset-btn" data-preset="retro" onclick="applyThumbPreset('retro')" style="padding:4px 10px;font-size:0.75em;background:#F2E8D5;color:#C45E26;border:1px solid #C45E26;">Retro</button>
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
-              <input type="checkbox" class="random-preset" data-preset="3dextrude" title="Random">
-              <button class="small preset-btn" data-preset="3dextrude" onclick="applyThumbPreset('3dextrude')" style="padding:4px 10px;font-size:0.75em;background:#1a0a2e;color:#FFD700;border:1px solid #FFD700;">3D Gold</button>
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
-              <input type="checkbox" class="random-preset" data-preset="glassmorphism" title="Random">
-              <button class="small preset-btn" data-preset="glassmorphism" onclick="applyThumbPreset('glassmorphism')" style="padding:4px 10px;font-size:0.75em;background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);backdrop-filter:blur(4px);">Glass</button>
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
-              <input type="checkbox" class="random-preset" data-preset="darkacademia" title="Random">
-              <button class="small preset-btn" data-preset="darkacademia" onclick="applyThumbPreset('darkacademia')" style="padding:4px 10px;font-size:0.75em;background:#2C1810;color:#D4A574;border:1px solid #D4A574;">Dark Academia</button>
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
-              <input type="checkbox" class="random-preset" data-preset="boldoutline" title="Random">
-              <button class="small preset-btn" data-preset="boldoutline" onclick="applyThumbPreset('boldoutline')" style="padding:4px 10px;font-size:0.75em;background:#000;color:#fff;border:2px solid #fff;font-weight:bold;">Bold Outline</button>
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
-              <input type="checkbox" class="random-preset" data-preset="elegantdark" title="Random">
-              <button class="small preset-btn" data-preset="elegantdark" onclick="applyThumbPreset('elegantdark')" style="padding:4px 10px;font-size:0.75em;background:#0a0a14;color:#C9B37E;border:1px solid #C9B37E;">Elegant Dark</button>
-            </div>
-          </div>
-          <div class="hint" style="margin-bottom:8px;">Marque os checkboxes para ativar modo random — cada publicacao usa um preset diferente dos selecionados</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px;">
+          <button class="small preset-btn" data-preset="premium" onclick="applyThumbPreset('premium')" style="padding:4px 10px;font-size:0.75em;background:linear-gradient(135deg,#1a1a2e,#16213e);color:#D9B65B;border:1px solid #D9B65B;">Premium</button>
+          <button class="small preset-btn" data-preset="youtube" onclick="applyThumbPreset('youtube')" style="padding:4px 10px;font-size:0.75em;background:#ff0000;color:#fff;border:1px solid #ff0000;">YouTube</button>
+          <button class="small preset-btn" data-preset="clean" onclick="applyThumbPreset('clean')" style="padding:4px 10px;font-size:0.75em;background:#222;color:#fff;border:1px solid #555;">Clean</button>
+          <button class="small preset-btn" data-preset="neon" onclick="applyThumbPreset('neon')" style="padding:4px 10px;font-size:0.75em;background:#0a0a1a;color:#00f5ff;border:1px solid #00f5ff;">Neon</button>
+          <button class="small preset-btn" data-preset="fallback" onclick="applyThumbPreset('fallback')" style="padding:4px 10px;font-size:0.75em;background:#1a1a2a;color:#ccc;border:1px dashed #666;">Fallback</button>
+          <button class="small preset-btn" data-preset="mrbeast" onclick="applyThumbPreset('mrbeast')" style="padding:4px 10px;font-size:0.75em;background:#ffd700;color:#000;border:1px solid #ffd700;">MrBeast</button>
+          <button class="small preset-btn" data-preset="techreview" onclick="applyThumbPreset('techreview')" style="padding:4px 10px;font-size:0.75em;background:#1e3a5f;color:#4fc3f7;border:1px solid #4fc3f7;">Tech</button>
+          <button class="small preset-btn" data-preset="tutorial" onclick="applyThumbPreset('tutorial')" style="padding:4px 10px;font-size:0.75em;background:#2e7d32;color:#fff;border:1px solid #4caf50;">Tutorial</button>
+          <button class="small preset-btn" data-preset="breaking" onclick="applyThumbPreset('breaking')" style="padding:4px 10px;font-size:0.75em;background:#b71c1c;color:#ffeb3b;border:1px solid #ffeb3b;">Breaking</button>
+          <button class="small preset-btn" data-preset="minimal" onclick="applyThumbPreset('minimal')" style="padding:4px 10px;font-size:0.75em;background:#fafafa;color:#222;border:1px solid #ccc;">Minimal</button>
+        </div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">
+          <button class="small preset-btn" data-preset="cinematic" onclick="applyThumbPreset('cinematic')" style="padding:4px 10px;font-size:0.75em;background:#0D0D1A;color:#F5A623;border:1px solid #F5A623;">Cinematic</button>
+          <button class="small preset-btn" data-preset="gradient" onclick="applyThumbPreset('gradient')" style="padding:4px 10px;font-size:0.75em;background:#0F0F0F;color:#BF00FF;border:1px solid #8B00FF;">Gradient</button>
+          <button class="small preset-btn" data-preset="splitscreen" onclick="applyThumbPreset('splitscreen')" style="padding:4px 10px;font-size:0.75em;background:linear-gradient(90deg,#E63946 50%,#1D3557 50%);color:#fff;border:1px solid #fff;">Split</button>
+          <button class="small preset-btn" data-preset="colorpop" onclick="applyThumbPreset('colorpop')" style="padding:4px 10px;font-size:0.75em;background:#222;color:#FF1C1C;border:1px solid #FF1C1C;">ColorPop</button>
+          <button class="small preset-btn" data-preset="retro" onclick="applyThumbPreset('retro')" style="padding:4px 10px;font-size:0.75em;background:#F2E8D5;color:#C45E26;border:1px solid #C45E26;">Retro</button>
+          <button class="small preset-btn" data-preset="3dextrude" onclick="applyThumbPreset('3dextrude')" style="padding:4px 10px;font-size:0.75em;background:#1a0a2e;color:#FFD700;border:1px solid #FFD700;">3D Gold</button>
+          <button class="small preset-btn" data-preset="glassmorphism" onclick="applyThumbPreset('glassmorphism')" style="padding:4px 10px;font-size:0.75em;background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);">Glass</button>
+          <button class="small preset-btn" data-preset="darkacademia" onclick="applyThumbPreset('darkacademia')" style="padding:4px 10px;font-size:0.75em;background:#2C1810;color:#D4A574;border:1px solid #D4A574;">Academia</button>
+          <button class="small preset-btn" data-preset="boldoutline" onclick="applyThumbPreset('boldoutline')" style="padding:4px 10px;font-size:0.75em;background:#000;color:#fff;border:2px solid #fff;">BoldOutline</button>
+          <button class="small preset-btn" data-preset="elegantdark" onclick="applyThumbPreset('elegantdark')" style="padding:4px 10px;font-size:0.75em;background:#0a0a14;color:#C9B37E;border:1px solid #C9B37E;">Elegant</button>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
           <label style="font-size:0.8em;color:var(--muted);">Preset para fallback (sem imagem IA):</label>
@@ -1449,28 +1386,31 @@
 
       <div class="config-section">
         <h3>Preview</h3>
-        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;">
-          <button class="small preset-btn" data-preset="premium" onclick="applyThumbPreset('premium')" style="padding:3px 8px;font-size:0.7em;background:linear-gradient(135deg,#1a1a2e,#16213e);color:#D9B65B;border:1px solid #D9B65B;">Premium</button>
-          <button class="small preset-btn" data-preset="youtube" onclick="applyThumbPreset('youtube')" style="padding:3px 8px;font-size:0.7em;background:#ff0000;color:#fff;border:1px solid #ff0000;">YouTube</button>
-          <button class="small preset-btn" data-preset="clean" onclick="applyThumbPreset('clean')" style="padding:3px 8px;font-size:0.7em;background:#222;color:#fff;border:1px solid #555;">Clean</button>
-          <button class="small preset-btn" data-preset="neon" onclick="applyThumbPreset('neon')" style="padding:3px 8px;font-size:0.7em;background:#0a0a1a;color:#00f5ff;border:1px solid #00f5ff;">Neon</button>
-          <button class="small preset-btn" data-preset="fallback" onclick="applyThumbPreset('fallback')" style="padding:3px 8px;font-size:0.7em;background:#1a1a2a;color:#ccc;border:1px dashed #666;">Fallback</button>
-          <button class="small preset-btn" data-preset="mrbeast" onclick="applyThumbPreset('mrbeast')" style="padding:3px 8px;font-size:0.7em;background:#ffd700;color:#000;border:1px solid #ffd700;">MrBeast</button>
-          <button class="small preset-btn" data-preset="techreview" onclick="applyThumbPreset('techreview')" style="padding:3px 8px;font-size:0.7em;background:#1e3a5f;color:#4fc3f7;border:1px solid #4fc3f7;">Tech</button>
-          <button class="small preset-btn" data-preset="tutorial" onclick="applyThumbPreset('tutorial')" style="padding:3px 8px;font-size:0.7em;background:#2e7d32;color:#fff;border:1px solid #4caf50;">Tutorial</button>
-          <button class="small preset-btn" data-preset="breaking" onclick="applyThumbPreset('breaking')" style="padding:3px 8px;font-size:0.7em;background:#b71c1c;color:#ffeb3b;border:1px solid #ffeb3b;">Breaking</button>
-          <button class="small preset-btn" data-preset="minimal" onclick="applyThumbPreset('minimal')" style="padding:3px 8px;font-size:0.7em;background:#fafafa;color:#222;border:1px solid #ccc;">Minimal</button>
-          <button class="small preset-btn" data-preset="cinematic" onclick="applyThumbPreset('cinematic')" style="padding:3px 8px;font-size:0.7em;background:#0D0D1A;color:#F5A623;border:1px solid #F5A623;">Cinematic</button>
-          <button class="small preset-btn" data-preset="gradient" onclick="applyThumbPreset('gradient')" style="padding:3px 8px;font-size:0.7em;background:#0F0F0F;color:#BF00FF;border:1px solid #8B00FF;">Gradient</button>
-          <button class="small preset-btn" data-preset="splitscreen" onclick="applyThumbPreset('splitscreen')" style="padding:3px 8px;font-size:0.7em;background:linear-gradient(90deg,#E63946 50%,#1D3557 50%);color:#fff;border:1px solid #fff;">Split</button>
-          <button class="small preset-btn" data-preset="colorpop" onclick="applyThumbPreset('colorpop')" style="padding:3px 8px;font-size:0.7em;background:#222;color:#FF1C1C;border:1px solid #FF1C1C;">ColorPop</button>
-          <button class="small preset-btn" data-preset="retro" onclick="applyThumbPreset('retro')" style="padding:3px 8px;font-size:0.7em;background:#F2E8D5;color:#C45E26;border:1px solid #C45E26;">Retro</button>
-          <button class="small preset-btn" data-preset="3dextrude" onclick="applyThumbPreset('3dextrude')" style="padding:3px 8px;font-size:0.7em;background:#1a0a2e;color:#FFD700;border:1px solid #FFD700;">3D Gold</button>
-          <button class="small preset-btn" data-preset="glassmorphism" onclick="applyThumbPreset('glassmorphism')" style="padding:3px 8px;font-size:0.7em;background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);">Glass</button>
-          <button class="small preset-btn" data-preset="darkacademia" onclick="applyThumbPreset('darkacademia')" style="padding:3px 8px;font-size:0.7em;background:#2C1810;color:#D4A574;border:1px solid #D4A574;">Academia</button>
-          <button class="small preset-btn" data-preset="boldoutline" onclick="applyThumbPreset('boldoutline')" style="padding:3px 8px;font-size:0.7em;background:#000;color:#fff;border:2px solid #fff;">BoldOutline</button>
-          <button class="small preset-btn" data-preset="elegantdark" onclick="applyThumbPreset('elegantdark')" style="padding:3px 8px;font-size:0.7em;background:#0a0a14;color:#C9B37E;border:1px solid #C9B37E;">Elegant</button>
+        <div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:4px;">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1px;"><button class="small preset-btn" data-preset="premium" onclick="applyThumbPreset('premium')" style="padding:3px 8px;font-size:0.7em;background:linear-gradient(135deg,#1a1a2e,#16213e);color:#D9B65B;border:1px solid #D9B65B;">Premium</button><input type="checkbox" class="random-preset" data-preset="premium" title="Random"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1px;"><button class="small preset-btn" data-preset="youtube" onclick="applyThumbPreset('youtube')" style="padding:3px 8px;font-size:0.7em;background:#ff0000;color:#fff;border:1px solid #ff0000;">YouTube</button><input type="checkbox" class="random-preset" data-preset="youtube" title="Random"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1px;"><button class="small preset-btn" data-preset="clean" onclick="applyThumbPreset('clean')" style="padding:3px 8px;font-size:0.7em;background:#222;color:#fff;border:1px solid #555;">Clean</button><input type="checkbox" class="random-preset" data-preset="clean" title="Random"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1px;"><button class="small preset-btn" data-preset="neon" onclick="applyThumbPreset('neon')" style="padding:3px 8px;font-size:0.7em;background:#0a0a1a;color:#00f5ff;border:1px solid #00f5ff;">Neon</button><input type="checkbox" class="random-preset" data-preset="neon" title="Random"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1px;"><button class="small preset-btn" data-preset="fallback" onclick="applyThumbPreset('fallback')" style="padding:3px 8px;font-size:0.7em;background:#1a1a2a;color:#ccc;border:1px dashed #666;">Fallback</button><input type="checkbox" class="random-preset" data-preset="fallback" title="Random"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1px;"><button class="small preset-btn" data-preset="mrbeast" onclick="applyThumbPreset('mrbeast')" style="padding:3px 8px;font-size:0.7em;background:#ffd700;color:#000;border:1px solid #ffd700;">MrBeast</button><input type="checkbox" class="random-preset" data-preset="mrbeast" title="Random"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1px;"><button class="small preset-btn" data-preset="techreview" onclick="applyThumbPreset('techreview')" style="padding:3px 8px;font-size:0.7em;background:#1e3a5f;color:#4fc3f7;border:1px solid #4fc3f7;">Tech</button><input type="checkbox" class="random-preset" data-preset="techreview" title="Random"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1px;"><button class="small preset-btn" data-preset="tutorial" onclick="applyThumbPreset('tutorial')" style="padding:3px 8px;font-size:0.7em;background:#2e7d32;color:#fff;border:1px solid #4caf50;">Tutorial</button><input type="checkbox" class="random-preset" data-preset="tutorial" title="Random"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1px;"><button class="small preset-btn" data-preset="breaking" onclick="applyThumbPreset('breaking')" style="padding:3px 8px;font-size:0.7em;background:#b71c1c;color:#ffeb3b;border:1px solid #ffeb3b;">Breaking</button><input type="checkbox" class="random-preset" data-preset="breaking" title="Random"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1px;"><button class="small preset-btn" data-preset="minimal" onclick="applyThumbPreset('minimal')" style="padding:3px 8px;font-size:0.7em;background:#fafafa;color:#222;border:1px solid #ccc;">Minimal</button><input type="checkbox" class="random-preset" data-preset="minimal" title="Random"></div>
         </div>
+        <div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:6px;">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1px;"><button class="small preset-btn" data-preset="cinematic" onclick="applyThumbPreset('cinematic')" style="padding:3px 8px;font-size:0.7em;background:#0D0D1A;color:#F5A623;border:1px solid #F5A623;">Cinematic</button><input type="checkbox" class="random-preset" data-preset="cinematic" title="Random"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1px;"><button class="small preset-btn" data-preset="gradient" onclick="applyThumbPreset('gradient')" style="padding:3px 8px;font-size:0.7em;background:#0F0F0F;color:#BF00FF;border:1px solid #8B00FF;">Gradient</button><input type="checkbox" class="random-preset" data-preset="gradient" title="Random"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1px;"><button class="small preset-btn" data-preset="splitscreen" onclick="applyThumbPreset('splitscreen')" style="padding:3px 8px;font-size:0.7em;background:linear-gradient(90deg,#E63946 50%,#1D3557 50%);color:#fff;border:1px solid #fff;">Split</button><input type="checkbox" class="random-preset" data-preset="splitscreen" title="Random"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1px;"><button class="small preset-btn" data-preset="colorpop" onclick="applyThumbPreset('colorpop')" style="padding:3px 8px;font-size:0.7em;background:#222;color:#FF1C1C;border:1px solid #FF1C1C;">ColorPop</button><input type="checkbox" class="random-preset" data-preset="colorpop" title="Random"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1px;"><button class="small preset-btn" data-preset="retro" onclick="applyThumbPreset('retro')" style="padding:3px 8px;font-size:0.7em;background:#F2E8D5;color:#C45E26;border:1px solid #C45E26;">Retro</button><input type="checkbox" class="random-preset" data-preset="retro" title="Random"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1px;"><button class="small preset-btn" data-preset="3dextrude" onclick="applyThumbPreset('3dextrude')" style="padding:3px 8px;font-size:0.7em;background:#1a0a2e;color:#FFD700;border:1px solid #FFD700;">3D Gold</button><input type="checkbox" class="random-preset" data-preset="3dextrude" title="Random"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1px;"><button class="small preset-btn" data-preset="glassmorphism" onclick="applyThumbPreset('glassmorphism')" style="padding:3px 8px;font-size:0.7em;background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);">Glass</button><input type="checkbox" class="random-preset" data-preset="glassmorphism" title="Random"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1px;"><button class="small preset-btn" data-preset="darkacademia" onclick="applyThumbPreset('darkacademia')" style="padding:3px 8px;font-size:0.7em;background:#2C1810;color:#D4A574;border:1px solid #D4A574;">Academia</button><input type="checkbox" class="random-preset" data-preset="darkacademia" title="Random"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1px;"><button class="small preset-btn" data-preset="boldoutline" onclick="applyThumbPreset('boldoutline')" style="padding:3px 8px;font-size:0.7em;background:#000;color:#fff;border:2px solid #fff;">BoldOutline</button><input type="checkbox" class="random-preset" data-preset="boldoutline" title="Random"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1px;"><button class="small preset-btn" data-preset="elegantdark" onclick="applyThumbPreset('elegantdark')" style="padding:3px 8px;font-size:0.7em;background:#0a0a14;color:#C9B37E;border:1px solid #C9B37E;">Elegant</button><input type="checkbox" class="random-preset" data-preset="elegantdark" title="Random"></div>
+        </div>
+        <div class="hint" style="margin-bottom:6px;">Checkboxes = modo random (cada publicacao sorteia um)</div>
         <div class="config-grid" style="grid-template-columns: 1fr 1fr; margin-bottom:8px;">
           <div class="config-field">
             <label>Texto de exemplo</label>
