@@ -1243,8 +1243,16 @@
           </div>
           <div class="config-field">
             <label>Distancia accent (px)</label>
-            <input type="number" id="cfgDesignAccentGap" value="8" min="0" max="40" step="2">
+            <input type="number" id="cfgDesignAccentGap" value="30" min="0" max="60" step="2">
             <div class="hint">Espaco entre o titulo e a linha accent</div>
+          </div>
+          <div class="config-field">
+            <label>Exibir accent</label>
+            <select id="cfgDesignAccentEnabled">
+              <option value="true">Sim</option>
+              <option value="false">Nao</option>
+            </select>
+            <div class="hint">Desativa a linha accent</div>
           </div>
         </div>
       </div>
@@ -1356,6 +1364,18 @@
 
       <div class="config-section">
         <h3>Preview</h3>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+          <button class="small preset-btn" data-preset="premium" onclick="applyThumbPreset('premium')" style="padding:4px 10px;font-size:0.75em;background:linear-gradient(135deg,#1a1a2e,#16213e);color:#D9B65B;border:1px solid #D9B65B;">Premium</button>
+          <button class="small preset-btn" data-preset="youtube" onclick="applyThumbPreset('youtube')" style="padding:4px 10px;font-size:0.75em;background:#ff0000;color:#fff;border:1px solid #ff0000;">YouTube</button>
+          <button class="small preset-btn" data-preset="clean" onclick="applyThumbPreset('clean')" style="padding:4px 10px;font-size:0.75em;background:#222;color:#fff;border:1px solid #555;">Clean</button>
+          <button class="small preset-btn" data-preset="neon" onclick="applyThumbPreset('neon')" style="padding:4px 10px;font-size:0.75em;background:#0a0a1a;color:#00f5ff;border:1px solid #00f5ff;">Neon</button>
+          <button class="small preset-btn" data-preset="fallback" onclick="applyThumbPreset('fallback')" style="padding:4px 10px;font-size:0.75em;background:#1a1a2a;color:#ccc;border:1px dashed #666;">Fallback</button>
+          <button class="small preset-btn" data-preset="mrbeast" onclick="applyThumbPreset('mrbeast')" style="padding:4px 10px;font-size:0.75em;background:#ffd700;color:#000;border:1px solid #ffd700;">MrBeast</button>
+          <button class="small preset-btn" data-preset="techreview" onclick="applyThumbPreset('techreview')" style="padding:4px 10px;font-size:0.75em;background:#1e3a5f;color:#4fc3f7;border:1px solid #4fc3f7;">Tech</button>
+          <button class="small preset-btn" data-preset="tutorial" onclick="applyThumbPreset('tutorial')" style="padding:4px 10px;font-size:0.75em;background:#2e7d32;color:#fff;border:1px solid #4caf50;">Tutorial</button>
+          <button class="small preset-btn" data-preset="breaking" onclick="applyThumbPreset('breaking')" style="padding:4px 10px;font-size:0.75em;background:#b71c1c;color:#ffeb3b;border:1px solid #ffeb3b;">Breaking</button>
+          <button class="small preset-btn" data-preset="minimal" onclick="applyThumbPreset('minimal')" style="padding:4px 10px;font-size:0.75em;background:#fafafa;color:#222;border:1px solid #ccc;">Minimal</button>
+        </div>
         <div class="config-grid" style="grid-template-columns: 1fr 1fr; margin-bottom:8px;">
           <div class="config-field">
             <label>Texto de exemplo</label>
@@ -1661,7 +1681,7 @@ function _getDesignData() {
     design_text_color: g('cfgDesignTextColor'), design_highlight_color: g('cfgDesignHighlightColor'),
     design_highlight_enabled: g('cfgDesignHighlightEnabled'), design_accent_color: g('cfgDesignAccentColor'),
     design_accent_width: g('cfgDesignAccentWidth'), design_accent_height: g('cfgDesignAccentHeight'),
-    design_accent_gap: g('cfgDesignAccentGap'),
+    design_accent_gap: g('cfgDesignAccentGap'), design_accent_enabled: g('cfgDesignAccentEnabled'),
     design_shadow_type: g('cfgDesignShadowType'), design_shadow_color: g('cfgDesignShadowColor'),
     design_shadow_size: g('cfgDesignShadowSize'), design_shadow_opacity: g('cfgDesignShadowOpacity'),
     design_gradient: g('cfgDesignGradient'), design_gradient_opacity: g('cfgDesignGradientOpacity'),
@@ -2452,6 +2472,10 @@ async function loadConfig() {
   if (c.design_highlight_color) { setVal('cfgDesignHighlightColor', c.design_highlight_color); setVal('cfgDesignHighlightColorHex', c.design_highlight_color); }
   setVal('cfgDesignHighlightEnabled', c.design_highlight_enabled);
   if (c.design_accent_color) { setVal('cfgDesignAccentColor', c.design_accent_color); setVal('cfgDesignAccentColorHex', c.design_accent_color); }
+  setVal('cfgDesignAccentWidth', c.design_accent_width);
+  setVal('cfgDesignAccentHeight', c.design_accent_height);
+  setVal('cfgDesignAccentGap', c.design_accent_gap);
+  setVal('cfgDesignAccentEnabled', c.design_accent_enabled);
   setVal('cfgDesignShadowType', c.design_shadow_type);
   if (c.design_shadow_color) setVal('cfgDesignShadowColor', c.design_shadow_color);
   setVal('cfgDesignShadowSize', c.design_shadow_size);
