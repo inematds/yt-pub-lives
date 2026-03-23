@@ -759,6 +759,14 @@
       <div class="label">Pendentes</div>
       <div class="value yellow" id="statPendentes">-</div>
     </div>
+    <div class="stat-card">
+      <div class="label">Lives Erro</div>
+      <div class="value" style="color:#ef4444" id="statLivesErro">-</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Clips Erro</div>
+      <div class="value" style="color:#ef4444" id="statClipsErro">-</div>
+    </div>
     <div class="stat-card" onclick="filterByStatus('aguardando_pub')" style="cursor:pointer" title="Ver clips aguardando publicacao">
       <div class="label">Clips Aguardando</div>
       <div class="value yellow" id="statAguardando">-</div>
@@ -1442,7 +1450,8 @@
             <div class="hint">Texto que aparece na preview (simula a frase_curta)</div>
           </div>
           <div style="display:flex;gap:8px;align-items:flex-end;">
-            <button onclick="previewDesign(this)" style="padding:8px 20px;background:var(--accent);">Preview</button>
+            <button onclick="previewDesign(this, 'dark')" style="padding:8px 16px;background:var(--accent);">Preview Escuro</button>
+            <button onclick="previewDesign(this, 'light')" style="padding:8px 16px;background:#ccc;color:#222;">Preview Claro</button>
             <button onclick="saveDesign(this)">Salvar Design</button>
           </div>
         </div>
@@ -1761,12 +1770,13 @@ function saveDesign(btn) {
   }));
 }
 
-async function previewDesign(btn) {
+async function previewDesign(btn, bgType) {
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>Gerando...';
   try {
     const data = _getDesignData();
     data.preview_text = document.getElementById('cfgDesignPreviewText').value || 'MULTIPLIQUE SEU LUCRO';
+    data.preview_bg = bgType || 'dark';
     const resp = await fetchJson('/api/thumb/preview', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(data)
@@ -2178,6 +2188,8 @@ async function loadStats() {
   document.getElementById('statCortadas').textContent = data.lives_cortadas;
   document.getElementById('statPendentes').textContent = data.lives_pendentes;
   document.getElementById('statPublicados').textContent = data.total_publicados;
+  document.getElementById('statLivesErro').textContent = data.lives_erro || 0;
+  document.getElementById('statClipsErro').textContent = data.clips_erro || 0;
 
   // Calcular clips aguardando publicacao
   let aguardando = 0;
