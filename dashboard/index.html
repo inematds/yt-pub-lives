@@ -679,7 +679,7 @@
 
 <div class="container">
   <header>
-    <h1><span>GWS</span> Lives & Clips <small style="font-size:0.5em;color:var(--muted)">- <span id="instanceName"></span> <a href="#" onclick="openModal('modalChangelog');return false" style="color:var(--accent);text-decoration:none" title="Ver changelog">v3.9.16</a></small>
+    <h1><span>GWS</span> Lives & Clips <small style="font-size:0.5em;color:var(--muted)">- <span id="instanceName"></span> <a href="#" onclick="openModal('modalChangelog');return false" style="color:var(--accent);text-decoration:none" title="Ver changelog">v3.15.23</a></small>
       <span id="headerCanais" style="display:block;font-size:0.4em;font-weight:normal;margin-top:4px"></span>
     </h1>
     <div class="header-actions">
@@ -3320,23 +3320,34 @@ loadAll();
       <button onclick="closeModal('modalChangelog')" style="background:none;border:none;color:var(--muted);font-size:1.2em;cursor:pointer">X</button>
     </div>
     <div class="modal-body" style="padding:16px;overflow-y:auto;font-size:0.85em;line-height:1.8">
-      <h3 style="color:var(--accent);margin-bottom:8px">v3.9.16</h3>
+      <h3 style="color:var(--accent);margin-bottom:8px">v3.15.23</h3>
       <p style="color:var(--muted);margin-bottom:4px"><strong>Features:</strong></p>
       <ul style="margin:0 0 8px 20px;color:var(--text)">
+        <li>Design Thumb: aba completa com 20 presets (Premium, YouTube, Clean, Neon, MrBeast, Cinematic, Gradient, etc)</li>
+        <li>Design Thumb: preview ao vivo (escuro/claro) com texto customizavel</li>
+        <li>Design Thumb: random presets com checkbox (sorteia estilo a cada publicacao)</li>
+        <li>Design Thumb: borda/stroke no titulo (cor, espessura, toggle)</li>
+        <li>Design Thumb: accent configuravel (cor, largura, espessura, distancia, toggle)</li>
+        <li>Design Thumb: marca com fonte, tamanho e posicao independente (default: base esquerda)</li>
         <li>Dashboard: tabs Ultimas Lives, Proximas Lives, Todos Clips, Clips Publicados/Pendentes/Erros</li>
-        <li>Dashboard: config em 4 abas (Horarios, APIs & IA, Prompts, Manutencao) com save independente</li>
-        <li>Dashboard: campos dinamicos por provider (mostra so chave/modelo do provider selecionado)</li>
-        <li>Dashboard: nome da instancia dinamico via INSTANCE_NAME no .env</li>
-        <li>Dashboard: coluna Data Live antes do titulo, coluna Data Corte na tabela de lives</li>
-        <li>Providers de imagem: adicionado MiniMax e Google Imagen</li>
-        <li>Refinamento de titulo usa Claude CLI (OAuth) em vez de Piramyd API</li>
+        <li>Dashboard: config em 5 abas (Horarios, APIs, Prompts, Design Thumb, Manutencao) com save independente</li>
+        <li>Dashboard: stats Lives Erro e Clips Erro</li>
+        <li>Dashboard: campos dinamicos por provider + nome instancia dinamico</li>
+        <li>Dashboard: coluna Data Live e Data Corte na tabela de lives</li>
+        <li>Providers de imagem: MiniMax, Google Imagen, Kie.ai z-image</li>
+        <li>Refinamento de titulo usa Claude CLI (OAuth)</li>
       </ul>
       <p style="color:var(--muted);margin-bottom:4px"><strong>Fixes:</strong></p>
       <ul style="margin:0 0 8px 20px;color:var(--text)">
-        <li>Fix publicacao duplicada: dashboard rodava scheduler embutido em paralelo com scheduler.py</li>
-        <li>Fix yt-dlp: fallback sem cookies quando Firefox retorna "page needs to be reloaded"</li>
-        <li>Fix re-publicacao: clips com erro_upload/publicando nao sao re-tentados automaticamente</li>
+        <li>Fix publicacao duplicada: dashboard rodava scheduler embutido</li>
+        <li>Fix yt-dlp: fallback sem cookies</li>
+        <li>Fix re-publicacao: clips com erro nao re-tentados</li>
+        <li>Fix Kie.ai z-image: endpoint /jobs/createTask + prompt truncado 400 chars</li>
+        <li>Fix prompt imagem: instrucao NO TEXT no inicio e fim</li>
+        <li>Fix health check thumb: testa provider configurado</li>
+        <li>Fix preset: seta todos os campos ao trocar (accent, stroke)</li>
         <li>Fix JS: protecao contra null em loadConfig</li>
+        <li>Fix validacao de data no sync</li>
       </ul>
 
       <h3 style="color:var(--accent);margin-bottom:8px">v3.9.14</h3>
