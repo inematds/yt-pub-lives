@@ -255,8 +255,13 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             with open(script_path) as f:
                 exec(compile(f.read(), script_path, 'exec'), yt_thumb.__dict__)
 
-            # Create gradient background
-            bg = yt_thumb.create_gradient_bg()
+            # Create background based on request
+            preview_bg = data.get('preview_bg', 'dark')
+            if preview_bg == 'light':
+                from PIL import Image as _Img
+                bg = _Img.new('RGB', (1280, 720), (220, 220, 225))
+            else:
+                bg = yt_thumb.create_gradient_bg()
 
             # Compose with sample text
             frase = data.get('preview_text', 'MULTIPLIQUE SEU LUCRO')
@@ -602,19 +607,31 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         # Count by status
         pendentes = 0
         cortados = 0
+        lives_erro = 0
         for row in lives_rows[1:]:
             status = row[6] if len(row) > 6 else ''
             if status == 'concluido':
                 cortados += 1
+            elif status == 'erro':
+                lives_erro += 1
             else:
                 pendentes += 1
+
+        # Count clips with errors
+        clips_erro = 0
+        if len(pub_rows) > 1:
+            for row in pub_rows[1:]:
+                if len(row) > 0 and row[0] in ('erro_upload', 'publicando', ''):
+                    clips_erro += 1
 
         self.send_json(200, {
             'instance_name': os.environ.get('INSTANCE_NAME', 'yt-pub-lives'),
             'total_lives': total_lives,
             'total_publicados': total_publicados,
             'lives_cortadas': cortados,
-            'lives_pendentes': pendentes
+            'lives_pendentes': pendentes,
+            'lives_erro': lives_erro,
+            'clips_erro': clips_erro
         })
 
     def handle_sync(self, data):
