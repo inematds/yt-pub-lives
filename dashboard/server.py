@@ -322,7 +322,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
         # Thumbnail API - testa o provider configurado
         try:
-            config_result = sheets_get('CONFIG!A1:B50')
+            config_result = sheets_get('CONFIG!A1:B200')
             cfg = {}
             for row in config_result.get('values', [])[1:]:
                 if len(row) >= 2:
@@ -561,7 +561,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.send_json(200, result)
 
     def handle_api_config(self):
-        result = sheets_get('CONFIG!A1:B50')
+        result = sheets_get('CONFIG!A1:B200')
         rows = result.get('values', [])
         config = {}
         for row in rows[1:]:  # skip header
@@ -755,7 +755,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     def handle_update_config(self, data):
         """Update config values."""
         # Read current config
-        result = sheets_get('CONFIG!A1:B50')
+        result = sheets_get('CONFIG!A1:B200')
         rows = result.get('values', [])
 
         # Track which keys were updated
@@ -867,7 +867,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         key = 'pipeline_cortes_paused' if target == 'cortes' else 'pipeline_pub_paused'
 
         # Read current config
-        result = sheets_get('CONFIG!A1:B50')
+        result = sheets_get('CONFIG!A1:B200')
         rows = result.get('values', [])
 
         current = 'false'
