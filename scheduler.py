@@ -114,7 +114,7 @@ def sheets_update(range_str, values):
 
 def load_config():
     """Le CONFIG da planilha e retorna dict."""
-    result = sheets_get('CONFIG!A1:B50')
+    result = sheets_get('CONFIG!A1:B200')
     rows = result.get('values', [])
     config = {}
     for row in rows[1:]:
@@ -452,7 +452,17 @@ def handle_thumbnail(video_id, title, description, config):
                 exec(compile(_f.read(), script_path, 'exec'), yt_thumb.__dict__)
 
             log(f'  Generating API thumbnail for {video_id} (model: {model})')
-            yt_thumb.generate_thumbnail(title, description, thumb_path)
+            try:
+                yt_thumb.generate_thumbnail(title, description, thumb_path)
+            except Exception as api_err:
+                log(f'  API thumbnail failed: {api_err}, using fallback')
+                fallback_preset = config.get('design_fallback_preset', '')
+                if fallback_preset and fallback_preset in yt_thumb.PRESETS:
+                    for k, v in yt_thumb.PRESETS[fallback_preset].items():
+                        os.environ[k] = v
+                    log(f'  Fallback preset: {fallback_preset}')
+                bg = yt_thumb.create_gradient_bg()
+                yt_thumb.compose_thumbnail(bg, title[:70], '', thumb_path)
 
         elif thumb_mode == 'local':
             # Local Pillow-based: extract frame from video + overlay text
@@ -911,19 +921,31 @@ def main():
                 if last_executed.get('sync') != '00:00':
                     last_executed['sync'] = '00:00'
                     log('==> Auto-sync: sincronizando lives do canal de origem...')
-                    try:
-                        dashboard_port = config.get('dashboard_port', '8091')
-                        payload = json.dumps({'mode': 'novas', 'max_lives': 1000}).encode()
-                        req = urllib.request.Request(
-                            f'http://localhost:{dashboard_port}/api/sync',
-                            data=payload
-                        )
-                        req.add_header('Content-Type', 'application/json')
-                        resp = urllib.request.urlopen(req, timeout=120)
-                        result = json.loads(resp.read())
-                        log(f'  Auto-sync concluido: {result.get("novas_lives", 0)} novas lives')
-                    except Exception as e:
-                        log(f'  ERRO no auto-sync: {e}')
+                    update_status('sincronizando', 'Auto-sync em andamento...')
+                    dashboard_port = config.get('dashboard_port', '8091')
+                    payload = json.dumps({'mode': 'novas', 'max_lives': 1000}).encode()
+                    sync_ok = False
+                    for attempt in range(1, 4):
+                        try:
+                            req = urllib.request.Request(
+                                f'http://localhost:{dashboard_port}/api/sync',
+                                data=payload
+                            )
+                            req.add_header('Content-Type', 'application/json')
+                            resp = urllib.request.urlopen(req, timeout=120)
+                            result = json.loads(resp.read())
+                            novas = result.get('novas_lives', 0)
+                            log(f'  Auto-sync concluido: {novas} novas lives')
+                            update_status('idle', f'Auto-sync OK: {novas} novas lives')
+                            sync_ok = True
+                            break
+                        except Exception as e:
+                            log(f'  ERRO no auto-sync (tentativa {attempt}/3): {e}')
+                            if attempt < 3:
+                                time.sleep(30)
+                    if not sync_ok:
+                        log('  Auto-sync falhou apos 3 tentativas')
+                        update_status('erro', 'Auto-sync falhou apos 3 tentativas (connection refused)')
             if now_hm != '00:00' and last_executed.get('sync'):
                 last_executed['sync'] = None
 
