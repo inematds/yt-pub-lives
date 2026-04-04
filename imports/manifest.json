@@ -1,0 +1,66 @@
+{
+  "titulo": "Lote Quick inema 2026-04-04",
+  "batch_id": "tg_lotequick_1775306975926_97cadc",
+  "created_at": "2026-04-04T12:49:35.926Z",
+  "command_text": "campanhas c2,c44,c45 fonte solido #0D0D0D modo enxuto",
+  "project_dir": "prj/inema",
+  "scope": "campanhas",
+  "source_spec": "solido #0D0D0D",
+  "source_label": "sólido #0D0D0D",
+  "quick_mode": "enxuto",
+  "selected_campaigns": [
+    "c0002-pascoa2026",
+    "c0044-gestores_ia_lideranca",
+    "c0045-caminho_iniciantes_ia"
+  ],
+  "clips": [
+    {
+      "filename": "videos/c0002-pascoa2026__c0002-pascoa2026_quick_01_20260404_095306.mp4",
+      "title": "Renascer Profissional",
+      "description": "A Páscoa celebra o renascimento — e sua carreira pode renascer com IA. Escolhemos este ângulo por ser a interseção mais forte entre o simbolismo emocional da data (renovação, recomeço, esperança) e a dor real da persona INEMA (profissional em transição que sente que ficará para trás). Nenhuma marca de educação em IA está explorando esse espaço, tornando INEMA pioneira.",
+      "tags": [
+        "c0002",
+        "pascoa2026"
+      ]
+    },
+    {
+      "filename": "videos/c0044-gestores_ia_lideranca__c0044-gestores_ia_lideranca_quick_02_20260404_095943.mp4",
+      "title": "O Gestor que Domina IA",
+      "description": "Em 2026, a maior divisão no mundo corporativo não é entre grandes e pequenas empresas, nem entre seniores e juniores — é entre gestores que dominam IA e os que ainda hesitam. O gestor sobrecarregado, preso em operacional, reuniões que poderiam ser e-mail e decisões lentas, já tem um substituto invisível: o concorrente que usa IA para decidir em 30 segundos o que levaria horas. Mas a virada não está na tecnologia — está na identidade. O gestor que entende IA como habilidade de liderança, e não como projeto de TI, torna-se insubstituível: mais rápido, mais estratégico, mais competitivo. A INEMA existe para encurtar esse caminho — com formação prática, gratuita e na linguagem do decisor que precisa de resultado agora.",
+      "tags": [
+        "gestores",
+        "lideranca"
+      ]
+    },
+    {
+      "filename": "videos/c0045-caminho_iniciantes_ia__c0045-caminho_iniciantes_ia_quick_02_20260404_101129.mp4",
+      "title": "Quem Deixou de Trabalhar Como Antes",
+      "description": "Enquanto sua empresa ainda debate qual ferramenta de IA usar, os líderes que vão dominar 2026 já mudaram o modelo — eles pararam de trabalhar como antes. A IA chegou na maioria das empresas sem estrutura: cada pessoa usa como pode, sem alinhamento, sem impacto real. O problema não é a ferramenta. É o modelo. Esta campanha é um caminho de 10 passos para gestores que já têm IA na empresa mas ainda operam do mesmo jeito: mapeie os processos manuais, priorize o que tem maior impacto, estruture o modelo de uso, automatize os primeiros fluxos, treine a equipe com método, crie capacidade interna, implemente, meça, ajuste e expanda. Não é sobre tecnologia — é sobre liderar de forma diferente. Uma equipe interna de IA não se contrata. Se constrói. E o caminho começa agora, de graça, no INEMA.CLUB.",
+      "tags": [
+        "c0045",
+        "caminho",
+        "iniciantes"
+      ]
+    }
+  ],
+  "defaults": {
+    "targets": [
+      "video_quick"
+    ],
+    "quick_mode": "enxuto",
+    "image_source": "solid",
+    "image_background_color": "#0D0D0D",
+    "image_folder": null,
+    "platform_targets": [
+      "instagram"
+    ],
+    "narrator": "rachel",
+    "video_duration": 20
+  },
+  "campaigns": [
+    "c0002-pascoa2026",
+    "c0044-gestores_ia_lideranca",
+    "c0045-caminho_iniciantes_ia"
+  ],
+  "force_new_plan": false
+}

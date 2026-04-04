@@ -1,0 +1,46 @@
+{
+  "items": {
+    "c0002-pascoa2026": {
+      "status": "completed",
+      "started_at": "2026-04-04T12:49:36.296Z",
+      "campaign_id": "c0002-pascoa2026",
+      "completed_at": "2026-04-04T12:53:16.337Z",
+      "output_dir": "prj/inema/outputs/c0002-pascoa2026",
+      "targets": [
+        "video_quick"
+      ],
+      "batch_videos": [
+        "c0002-pascoa2026__c0002-pascoa2026_quick_01_20260404_095306.mp4"
+      ],
+      "batch_ads": []
+    },
+    "c0044-gestores_ia_lideranca": {
+      "status": "completed",
+      "started_at": "2026-04-04T12:53:16.338Z",
+      "campaign_id": "c0044-gestores_ia_lideranca",
+      "completed_at": "2026-04-04T12:59:51.419Z",
+      "output_dir": "prj/inema/outputs/c0044-gestores_ia_lideranca",
+      "targets": [
+        "video_quick"
+      ],
+      "batch_videos": [
+        "c0044-gestores_ia_lideranca__c0044-gestores_ia_lideranca_quick_02_20260404_095943.mp4"
+      ],
+      "batch_ads": []
+    },
+    "c0045-caminho_iniciantes_ia": {
+      "status": "completed",
+      "started_at": "2026-04-04T12:59:51.419Z",
+      "campaign_id": "c0045-caminho_iniciantes_ia",
+      "completed_at": "2026-04-04T13:11:41.548Z",
+      "output_dir": "prj/inema/outputs/c0045-caminho_iniciantes_ia",
+      "targets": [
+        "video_quick"
+      ],
+      "batch_videos": [
+        "c0045-caminho_iniciantes_ia__c0045-caminho_iniciantes_ia_quick_02_20260404_101129.mp4"
+      ],
+      "batch_ads": []
+    }
+  }
+}

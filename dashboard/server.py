@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Dashboard server for GWS Lives & Clips pipeline.
-Reads/writes to Google Sheet and syncs with YouTube channel.
+Reads/writes to local SQLite database and syncs with YouTube channel.
 """
 
 import json
@@ -29,7 +29,8 @@ if os.path.exists(ENV_FILE):
                 key, val = line.split('=', 1)
                 os.environ[key] = val
 
-SPREADSHEET_ID = os.environ.get('SPREADSHEET_ID', '')
+sys.path.insert(0, PROJECT_ROOT)
+import db
 
 
 def get_access_token():
@@ -55,56 +56,6 @@ def get_access_token():
     req = urllib.request.Request('https://oauth2.googleapis.com/token', data=token_data)
     resp = json.loads(urllib.request.urlopen(req).read())
     return resp['access_token']
-
-
-def sheets_api(method, endpoint, body=None):
-    """Call Google Sheets API."""
-    token = get_access_token()
-    url = f'https://sheets.googleapis.com/v4/spreadsheets/{SPREADSHEET_ID}/{endpoint}'
-
-    if body:
-        data = json.dumps(body).encode()
-        req = urllib.request.Request(url, data=data, method=method)
-        req.add_header('Content-Type', 'application/json')
-    else:
-        req = urllib.request.Request(url, method=method)
-
-    req.add_header('Authorization', f'Bearer {token}')
-
-    try:
-        resp = urllib.request.urlopen(req)
-        return json.loads(resp.read())
-    except urllib.error.HTTPError as e:
-        error_body = e.read().decode()
-        return {'error': error_body, 'status': e.code}
-
-
-def sheets_get(range_str):
-    """Read values from sheet."""
-    encoded_range = urllib.parse.quote(range_str)
-    return sheets_api('GET', f'values/{encoded_range}')
-
-
-def sheets_update(range_str, values):
-    """Write values to sheet."""
-    encoded_range = urllib.parse.quote(range_str)
-    body = {
-        'range': range_str,
-        'majorDimension': 'ROWS',
-        'values': values
-    }
-    return sheets_api('PUT', f'values/{encoded_range}?valueInputOption=RAW', body)
-
-
-def sheets_append(range_str, values):
-    """Append values to sheet."""
-    encoded_range = urllib.parse.quote(range_str)
-    body = {
-        'range': range_str,
-        'majorDimension': 'ROWS',
-        'values': values
-    }
-    return sheets_api('POST', f'values/{encoded_range}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', body)
 
 
 def youtube_api(endpoint, params=None):
@@ -185,6 +136,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.handle_api_transcript(video_id)
         elif path == '/api/thumbs/pending':
             self.handle_thumbs_pending()
+        elif path == '/api/sheet':
+            sheet_name = qs.get('name', ['CONFIG'])[0]
+            self.handle_sheet_read(sheet_name)
         elif path == '/api/health':
             self.handle_api_health()
         elif path.startswith('/clips/'):
@@ -235,6 +189,18 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.handle_clip_dismiss_erro(data)
         elif post_path == '/api/thumb/preview':
             self.handle_thumb_preview(data)
+        elif post_path == '/api/sheet/update':
+            self.handle_sheet_update(data)
+        elif post_path == '/api/sheet/upload':
+            self.handle_sheet_upload(data)
+        elif post_path == '/api/lives/fix-dates':
+            self.handle_fix_dates()
+        elif post_path == '/api/publicados/cleanup':
+            self.handle_publicados_cleanup()
+        elif post_path == '/api/import/scan':
+            self.handle_import_scan()
+        elif post_path == '/api/import/clean':
+            self.handle_import_clean(data)
         else:
             self.send_json(404, {'error': 'not found'})
 
@@ -276,6 +242,47 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         except Exception as e:
             self.send_json(500, {'error': str(e)})
 
+    def handle_sheet_read(self, sheet_name):
+        """Read full sheet data."""
+        allowed = {'CONFIG', 'LIVES', 'PUBLICADOS'}
+        if sheet_name not in allowed:
+            self.send_json(400, {'error': 'invalid sheet'})
+            return
+        values = db.get_table_as_rows(sheet_name)
+        self.send_json(200, {'sheet': sheet_name, 'values': values})
+
+    def handle_sheet_update(self, data):
+        """Save edited sheet data (full replace)."""
+        sheet_name = data.get('sheet', '')
+        values = data.get('values', [])
+        if sheet_name not in {'CONFIG', 'LIVES', 'PUBLICADOS'}:
+            self.send_json(400, {'error': 'invalid sheet'})
+            return
+        if not values:
+            self.send_json(400, {'error': 'no data'})
+            return
+        db.replace_table(sheet_name, values)
+        self.send_json(200, {'ok': True, 'rows': len(values)})
+
+    def handle_sheet_upload(self, data):
+        """Upload CSV to replace sheet."""
+        import csv as _csv, io as _io
+        sheet_name = data.get('sheet', '')
+        csv_text = data.get('csv', '')
+        if sheet_name not in {'CONFIG', 'LIVES', 'PUBLICADOS'}:
+            self.send_json(400, {'error': 'invalid sheet'})
+            return
+        if not csv_text:
+            self.send_json(400, {'error': 'no csv data'})
+            return
+        reader = _csv.reader(_io.StringIO(csv_text))
+        values = [row for row in reader]
+        if not values:
+            self.send_json(400, {'error': 'empty csv'})
+            return
+        db.replace_table(sheet_name, values)
+        self.send_json(200, {'ok': True, 'rows': len(values)})
+
     def send_json(self, code, data):
         self.send_response(code)
         self.send_header('Content-Type', 'application/json')
@@ -295,12 +302,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         except Exception as e:
             checks['yt_dlp'] = {'ok': False, 'detail': str(e)}
 
-        # Google Sheets
+        # Database
         try:
-            result = sheets_get('CONFIG!A1:A1')
-            checks['sheets'] = {'ok': 'error' not in result, 'detail': 'ok' if 'error' not in result else result.get('error', '')}
+            db.load_config()
+            checks['database'] = {'ok': True, 'detail': 'ok'}
         except Exception as e:
-            checks['sheets'] = {'ok': False, 'detail': str(e)}
+            checks['database'] = {'ok': False, 'detail': str(e)}
 
         # Claude CLI (IA cortes/pub)
         try:
@@ -322,11 +329,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
         # Thumbnail API - testa o provider configurado
         try:
-            config_result = sheets_get('CONFIG!A1:B200')
-            cfg = {}
-            for row in config_result.get('values', [])[1:]:
-                if len(row) >= 2:
-                    cfg[row[0]] = row[1]
+            cfg = db.load_config()
             img_provider = cfg.get('thumb_image_provider', 'piramyd')
 
             if img_provider == 'kie':
@@ -414,59 +417,99 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.wfile.write(f.read())
 
     def handle_api_lives(self):
-        result = sheets_get('LIVES!A1:M1000')
-        rows = result.get('values', [])
-        if len(rows) < 2:
-            self.send_json(200, {'lives': [], 'headers': rows[0] if rows else []})
-            return
+        lives = db.get_lives()
+        pub_records = db.get_publicados()
 
-        headers = rows[0]
-        lives = []
-        date_col = headers.index('data_live') if 'data_live' in headers else 2
-        for row in rows[1:]:
-            live = {}
-            for i, h in enumerate(headers):
-                live[h] = row[i] if i < len(row) else ''
-            lives.append(live)
-
-        # Enrich with last publication date from PUBLICADOS
-        pub_result = sheets_get('PUBLICADOS!A1:J1000')
-        pub_rows = pub_result.get('values', [])
-        pub_dates = {}  # live_video_id -> last pub date
-        if len(pub_rows) > 1:
-            pub_headers = pub_rows[0]
-            live_col = pub_headers.index('live_video_id') if 'live_video_id' in pub_headers else 3
-            date_col = pub_headers.index('data_publicacao') if 'data_publicacao' in pub_headers else 5
-            for row in pub_rows[1:]:
-                lid = row[live_col] if len(row) > live_col else ''
-                dt = row[date_col] if len(row) > date_col else ''
-                if lid and dt:
-                    if lid not in pub_dates or dt > pub_dates[lid]:
-                        pub_dates[lid] = dt
+        # Build pub_dates map from pub_records
+        pub_dates = {}
+        for p in pub_records:
+            lid = p.get('live_video_id', '')
+            dt = p.get('data_publicacao', '')
+            if lid and dt:
+                if lid not in pub_dates or dt > pub_dates[lid]:
+                    pub_dates[lid] = dt
 
         for live in lives:
             live['data_publicacao'] = pub_dates.get(live.get('video_id', ''), '')
 
-        # Oldest first - prioritize processing older lives
         lives.sort(key=lambda l: l.get('data_live', ''))
-
         self.send_json(200, {'lives': lives, 'total': len(lives)})
 
-    def handle_api_publicados(self, filter_live_id=None):
-        result = sheets_get('PUBLICADOS!A1:J1000')
-        rows = result.get('values', [])
+    def handle_fix_dates(self):
+        """Fill missing data_live from YouTube API for existing lives."""
+        lives = db.get_lives()
+        if not lives:
+            self.send_json(200, {'ok': True, 'fixed': 0})
+            return
 
-        headers = rows[0] if rows else []
-        publicados = []
-        if len(rows) >= 2:
-            live_col = headers.index('live_video_id') if 'live_video_id' in headers else 3
-            for row in rows[1:]:
-                pub = {}
-                for i, h in enumerate(headers):
-                    pub[h] = row[i] if i < len(row) else ''
-                if filter_live_id and pub.get('live_video_id', '') != filter_live_id:
-                    continue
-                publicados.append(pub)
+        # Find lives missing data_live
+        missing = [(l['video_id'],) for l in lives if l.get('video_id') and not l.get('data_live')]
+
+        if not missing:
+            self.send_json(200, {'ok': True, 'fixed': 0, 'message': 'Todas as lives ja tem data'})
+            return
+
+        # Fetch dates from YouTube in batches of 50
+        fixed = 0
+        updated = 0
+        missing_vids = [m[0] for m in missing]
+        for batch_start in range(0, len(missing_vids), 50):
+            batch = missing_vids[batch_start:batch_start + 50]
+            details = get_video_details(batch)
+            for item in details.get('items', []):
+                vid = item['id']
+                published = item.get('snippet', {}).get('publishedAt', '')[:10]
+                if published:
+                    db.update_live(vid, data_live=published)
+                    fixed += 1
+                    updated += 1
+
+        self.send_json(200, {'ok': True, 'fixed': fixed, 'updated': updated, 'total_missing': len(missing)})
+
+    def handle_publicados_cleanup(self):
+        """Remove empty rows, duplicate erro_upload, and duplicate published clips from PUBLICADOS."""
+        result = db.cleanup_publicados()
+        self.send_json(200, {'ok': True, **result})
+
+    def handle_import_scan(self):
+        """Dispara o import_worker manualmente: processa pastas em imports/."""
+        try:
+            sys.path.insert(0, PROJECT_ROOT)
+            import import_worker
+            config = db.load_config()
+            results = import_worker.process_imports(config)
+            ok = [r for r in results if r.get('ok')]
+            self.send_json(200, {'ok': True, 'processados': len(ok), 'total': len(results), 'detalhes': results})
+        except Exception as e:
+            self.send_json(500, {'error': str(e)})
+
+    def handle_import_clean(self, data):
+        """
+        Limpeza de pastas.
+        action: 'imports'          — limpa imports/ (residuos nao processados)
+                'clips'            — limpa clips/ das lives totalmente publicadas
+                'clips_all'        — limpa clips/ de TODAS as lives (cuidado)
+        """
+        try:
+            sys.path.insert(0, PROJECT_ROOT)
+            import import_worker
+            action = data.get('action', 'imports')
+            if action == 'imports':
+                n = import_worker.clean_imports()
+                self.send_json(200, {'ok': True, 'removidos': n})
+            elif action == 'clips':
+                n = import_worker.clean_clips(only_fully_published=True)
+                self.send_json(200, {'ok': True, 'lives_limpas': n})
+            elif action == 'clips_all':
+                n = import_worker.clean_clips(only_fully_published=False)
+                self.send_json(200, {'ok': True, 'lives_limpas': n})
+            else:
+                self.send_json(400, {'error': f'action invalida: {action}'})
+        except Exception as e:
+            self.send_json(500, {'error': str(e)})
+
+    def handle_api_publicados(self, filter_live_id=None):
+        publicados = db.get_publicados(filter_live_id)
 
         # Enrich publicados with filename from manifest
         lives_dir = os.environ.get('LIVES_DIR', os.path.join(PROJECT_ROOT, 'lives'))
@@ -492,16 +535,42 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
         live_ids = [filter_live_id] if filter_live_id else []
         if not filter_live_id:
-            # Scan all lives with topics.json
+            # Scan all lives with topics.json OR imports with clips_manifest.json
             if os.path.isdir(lives_dir):
                 for d in os.listdir(lives_dir):
-                    if os.path.exists(os.path.join(lives_dir, d, 'topics.json')):
+                    job = os.path.join(lives_dir, d)
+                    if os.path.exists(os.path.join(job, 'topics.json')) or \
+                       (d.startswith('import_') and os.path.exists(os.path.join(job, 'clips_manifest.json'))):
                         live_ids.append(d)
 
         for lid in live_ids:
             topics_path = os.path.join(lives_dir, lid, 'topics.json')
             manifest_path = os.path.join(lives_dir, lid, 'clips_manifest.json')
-            if os.path.exists(topics_path):
+            is_import = lid.startswith('import_')
+
+            if is_import and not os.path.exists(topics_path):
+                # Imports: usa clips_manifest.json como fonte de pendentes
+                if not os.path.exists(manifest_path):
+                    continue
+                try:
+                    with open(manifest_path) as f:
+                        clips = json.load(f)
+                    for c in clips:
+                        title = c.get('title', '')
+                        if title not in pub_titles:
+                            pendentes.append({
+                                'title':         title,
+                                'description':   c.get('description', ''),
+                                'tags':          ', '.join(c.get('tags', [])) if isinstance(c.get('tags'), list) else c.get('tags', ''),
+                                'start':         '',
+                                'end':           '',
+                                'live_video_id': lid,
+                                'filename':      c.get('filename', ''),
+                                'paused':        c.get('paused', False),
+                            })
+                except Exception:
+                    pass
+            elif os.path.exists(topics_path):
                 try:
                     with open(topics_path) as f:
                         topics_data = json.load(f)
@@ -519,14 +588,14 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                         if title not in pub_titles:
                             m = manifest.get(title, {})
                             pendentes.append({
-                                'title': title,
-                                'description': t.get('description', ''),
-                                'tags': ', '.join(t.get('tags', [])),
-                                'start': t.get('start', ''),
-                                'end': t.get('end', ''),
+                                'title':         title,
+                                'description':   t.get('description', ''),
+                                'tags':          ', '.join(t.get('tags', [])),
+                                'start':         t.get('start', ''),
+                                'end':           t.get('end', ''),
                                 'live_video_id': lid,
-                                'filename': m.get('filename', ''),
-                                'paused': m.get('paused', False),
+                                'filename':      m.get('filename', ''),
+                                'paused':        m.get('paused', False),
                             })
                 except Exception:
                     pass
@@ -561,14 +630,41 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.send_json(200, result)
 
     def handle_api_config(self):
-        result = sheets_get('CONFIG!A1:B200')
-        rows = result.get('values', [])
-        config = {}
-        for row in rows[1:]:  # skip header
-            if len(row) >= 2:
-                config[row[0]] = row[1]
-            elif len(row) == 1:
-                config[row[0]] = ''
+        config = db.load_config()
+
+        # Add canal info from env/YouTube API
+        channel_id = os.environ.get('YOUTUBE_CHANNEL_ID', '')
+        if channel_id and 'canal_origem_nome' not in config:
+            config['canal_origem_id'] = channel_id
+            config['canal_origem_url'] = f'https://www.youtube.com/channel/{channel_id}'
+            try:
+                details = get_video_details([])  # dummy to avoid, use channel API instead
+            except Exception:
+                pass
+            # Try to get channel name from YouTube API
+            try:
+                result = youtube_api('channels', {'part': 'snippet', 'id': channel_id})
+                items = result.get('items', [])
+                if items:
+                    config['canal_origem_nome'] = items[0]['snippet']['title']
+            except Exception:
+                config['canal_origem_nome'] = channel_id
+
+        # Canal destino = authenticated channel
+        if 'canal_destino_nome' not in config:
+            try:
+                token = get_access_token()
+                req = urllib.request.Request('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true')
+                req.add_header('Authorization', f'Bearer {token}')
+                resp = json.loads(urllib.request.urlopen(req).read())
+                items = resp.get('items', [])
+                if items:
+                    config['canal_destino_id'] = items[0]['id']
+                    config['canal_destino_nome'] = items[0]['snippet']['title']
+                    config['canal_destino_url'] = f'https://www.youtube.com/channel/{items[0]["id"]}'
+            except Exception:
+                pass
+
         self.send_json(200, {'config': config})
 
     def handle_api_prompts_get(self):
@@ -595,21 +691,18 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.send_json(200, {'ok': True, 'saved': saved})
 
     def handle_api_stats(self):
-        lives_result = sheets_get('LIVES!A1:M1000')
-        pub_result = sheets_get('PUBLICADOS!A1:J1000')
+        lives_list = db.get_lives()
+        pub_list = db.get_publicados()
 
-        lives_rows = lives_result.get('values', [])
-        pub_rows = pub_result.get('values', [])
-
-        total_lives = max(0, len(lives_rows) - 1)
-        total_publicados = max(0, len(pub_rows) - 1)
+        total_lives = len(lives_list)
+        total_publicados = len(pub_list)
 
         # Count by status
         pendentes = 0
         cortados = 0
         lives_erro = 0
-        for row in lives_rows[1:]:
-            status = row[6] if len(row) > 6 else ''
+        for live in lives_list:
+            status = live.get('status_cortes', '')
             if status == 'concluido':
                 cortados += 1
             elif status == 'erro':
@@ -619,10 +712,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
         # Count clips with errors
         clips_erro = 0
-        if len(pub_rows) > 1:
-            for row in pub_rows[1:]:
-                if len(row) > 0 and row[0] in ('erro_upload', 'publicando', ''):
-                    clips_erro += 1
+        for pub in pub_list:
+            if pub.get('clip_video_id', '') in ('erro_upload', 'publicando', ''):
+                clips_erro += 1
 
         self.send_json(200, {
             'instance_name': os.environ.get('INSTANCE_NAME', 'yt-pub-lives'),
@@ -649,26 +741,27 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         max_lives = data.get('max_lives', 50)
         max_pages = (max_lives // 50) + 1
 
-        # Validar formato de data (YYYY-MM-DD)
+        # Validar formato e validade das datas (YYYY-MM-DD)
         import re as _re
+        from datetime import datetime as _dt
         date_pattern = _re.compile(r'^\d{4}-\d{2}-\d{2}$')
-        if date_from and not date_pattern.match(date_from):
-            self.send_json(400, {'error': f'Data inicio invalida: "{date_from}". Use formato YYYY-MM-DD (ex: 2025-01-01)'})
-            return
-        if date_to and not date_pattern.match(date_to):
-            self.send_json(400, {'error': f'Data fim invalida: "{date_to}". Use formato YYYY-MM-DD (ex: 2025-12-31)'})
-            return
+        for label, val in [('inicio', date_from), ('fim', date_to)]:
+            if val:
+                if not date_pattern.match(val):
+                    self.send_json(400, {'error': f'Data {label} invalida: "{val}". Use formato YYYY-MM-DD'})
+                    return
+                try:
+                    _dt.strptime(val, '%Y-%m-%d')
+                except ValueError:
+                    self.send_json(400, {'error': f'Data {label} nao existe: "{val}" (ex: setembro tem 30 dias)'})
+                    return
 
         # Build date filters for YouTube API (ISO 8601)
         published_after = f'{date_from}T00:00:00Z' if date_from else None
         published_before = f'{date_to}T23:59:59Z' if date_to else None
 
-        # Get existing video IDs from sheet
-        existing_result = sheets_get('LIVES!A2:A1000')
-        existing_ids = set()
-        for row in existing_result.get('values', []):
-            if row:
-                existing_ids.add(row[0])
+        # Get existing video IDs from database
+        existing_ids = {l['video_id'] for l in db.get_lives()}
 
         # Fetch lives from YouTube
         all_lives = []
@@ -688,10 +781,16 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 if mode == 'novas' and vid in existing_ids:
                     continue
                 snippet = item.get('snippet', {})
+                pub_date = snippet.get('publishedAt', '')[:10]
+                # Filtro server-side: YouTube API nem sempre respeita publishedBefore/After
+                if date_from and pub_date < date_from:
+                    continue
+                if date_to and pub_date > date_to:
+                    continue
                 all_lives.append({
                     'video_id': vid,
                     'titulo': snippet.get('title', ''),
-                    'data_live': snippet.get('publishedAt', '')[:10],
+                    'data_live': pub_date,
                     'url': f'https://www.youtube.com/watch?v={vid}'
                 })
 
@@ -721,27 +820,27 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     if live['video_id'] in duration_map:
                         live['duracao_min'] = str(duration_map[live['video_id']])
 
-            # Append new lives to sheet
-            new_rows = []
+            # Add new lives to database
             today = __import__('datetime').date.today().isoformat()
+            new_lives_list = []
             for live in all_lives:
-                new_rows.append([
-                    live['video_id'],
-                    live['titulo'],
-                    live['data_live'],
-                    live.get('duracao_min', ''),
-                    live['url'],
-                    'pendente',  # status_transcricao
-                    'pendente',  # status_cortes
-                    '0',         # qtd_clips
-                    '0',         # clips_publicados
-                    '0',         # clips_pendentes
-                    today,       # data_sync
-                    ''           # observacoes
-                ])
+                new_lives_list.append({
+                    'video_id': live['video_id'],
+                    'titulo': live['titulo'],
+                    'data_live': live['data_live'],
+                    'duracao_min': live.get('duracao_min', ''),
+                    'url': live['url'],
+                    'status_transcricao': 'pendente',
+                    'status_cortes': 'pendente',
+                    'qtd_clips': '0',
+                    'clips_publicados': '0',
+                    'clips_pendentes': '0',
+                    'data_sync': today,
+                    'observacoes': ''
+                })
 
-            if new_rows:
-                sheets_append('LIVES!A1', new_rows)
+            if new_lives_list:
+                db.add_lives(new_lives_list)
 
         self.send_json(200, {
             'novas_lives': len(all_lives),
@@ -754,24 +853,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
     def handle_update_config(self, data):
         """Update config values."""
-        # Read current config
-        result = sheets_get('CONFIG!A1:B200')
-        rows = result.get('values', [])
-
-        # Track which keys were updated
-        existing_keys = set()
-        for i, row in enumerate(rows):
-            if len(row) >= 1:
-                existing_keys.add(row[0])
-                if row[0] in data:
-                    rows[i] = [row[0], str(data[row[0]])]
-
-        # Append new keys that don't exist yet
-        for key, val in data.items():
-            if key not in existing_keys:
-                rows.append([key, str(val)])
-
-        sheets_update('CONFIG!A1:B' + str(len(rows)), rows)
+        db.update_config(data)
         self.send_json(200, {'ok': True, 'updated': list(data.keys())})
 
     def handle_clip_privacy(self, data):
@@ -803,20 +885,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_json(500, {'error': error_body})
             return
 
-        # Update in spreadsheet
-        result = sheets_get('PUBLICADOS!A1:J1000')
-        rows = result.get('values', [])
-        if rows:
-            headers = rows[0]
-            id_col = headers.index('clip_video_id') if 'clip_video_id' in headers else 0
-            priv_col = headers.index('privacy') if 'privacy' in headers else 6
-            for i, row in enumerate(rows[1:], 1):
-                if len(row) > id_col and row[id_col] == clip_id:
-                    while len(row) <= priv_col:
-                        row.append('')
-                    row[priv_col] = new_privacy
-                    sheets_update(f'PUBLICADOS!A{i+1}:J{i+1}', [row])
-                    break
+        # Update in database
+        db.update_publicado_by_clip_id(clip_id, privacy=new_privacy)
 
         self.send_json(200, {'ok': True, 'clip_video_id': clip_id, 'privacy': new_privacy})
 
@@ -842,49 +912,20 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 self.send_json(500, {'error': error_body})
                 return
 
-        # Remove from spreadsheet
-        result = sheets_get('PUBLICADOS!A1:J1000')
-        rows = result.get('values', [])
-        if rows:
-            headers = rows[0]
-            id_col = headers.index('clip_video_id') if 'clip_video_id' in headers else 0
-            new_rows = [headers]
-            for row in rows[1:]:
-                if len(row) > id_col and row[id_col] == clip_id:
-                    continue
-                new_rows.append(row)
-
-            # Clear and rewrite
-            sheets_api('POST', f'values/{urllib.parse.quote("PUBLICADOS!A1:J1000")}:clear', {})
-            if len(new_rows) > 0:
-                sheets_update(f'PUBLICADOS!A1:J{len(new_rows)}', new_rows)
+        # Remove from database
+        db.delete_publicado(clip_id)
 
         self.send_json(200, {'ok': True, 'deleted': clip_id})
 
     def handle_pipeline_toggle(self, data):
-        """Toggle pipeline pause flags in CONFIG sheet."""
-        target = data.get('target', 'cortes')  # cortes | pub
-        key = 'pipeline_cortes_paused' if target == 'cortes' else 'pipeline_pub_paused'
+        """Toggle pipeline pause flags in CONFIG."""
+        target = data.get('target', 'cortes')  # cortes | pub | imports
+        key_map = {'cortes': 'pipeline_cortes_paused', 'pub': 'pipeline_pub_paused', 'imports': 'pipeline_imports_paused'}
+        key = key_map.get(target, 'pipeline_pub_paused')
 
-        # Read current config
-        result = sheets_get('CONFIG!A1:B200')
-        rows = result.get('values', [])
-
-        current = 'false'
-        found_idx = -1
-        for i, row in enumerate(rows):
-            if len(row) >= 1 and row[0] == key:
-                current = row[1] if len(row) >= 2 else 'false'
-                found_idx = i
-                break
-
+        current = db.get_config(key, 'false')
         new_val = 'false' if current == 'true' else 'true'
-
-        if found_idx >= 0:
-            rows[found_idx] = [key, new_val]
-            sheets_update('CONFIG!A1:B' + str(len(rows)), rows)
-        else:
-            sheets_append('CONFIG!A1', [[key, new_val]])
+        db.set_config(key, new_val)
 
         self.send_json(200, {'ok': True, 'target': target, 'paused': new_val == 'true'})
 
@@ -895,40 +936,26 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_json(400, {'error': 'video_id required'})
             return
 
-        result = sheets_get('LIVES!A1:M1000')
-        rows = result.get('values', [])
-        if len(rows) < 2:
-            self.send_json(404, {'error': 'no lives found'})
+        live = db.get_live(video_id)
+        if not live:
+            self.send_json(404, {'error': f'video_id {video_id} not found'})
             return
 
-        headers = rows[0]
-        cortes_col = headers.index('status_cortes') if 'status_cortes' in headers else -1
-        trans_col = headers.index('status_transcricao') if 'status_transcricao' in headers else -1
-        vid_col = headers.index('video_id') if 'video_id' in headers else 0
+        db.update_live(video_id,
+                       status_transcricao='pendente',
+                       status_cortes='pendente',
+                       qtd_clips='0',
+                       clips_publicados='0',
+                       clips_pendentes='0',
+                       observacoes='')
 
-        found = False
-        for i, row in enumerate(rows[1:], 1):
-            vid = row[vid_col] if vid_col < len(row) else ''
-            if vid == video_id:
-                while len(row) <= max(cortes_col, trans_col):
-                    row.append('')
-                if cortes_col >= 0:
-                    row[cortes_col] = 'pendente'
-                if trans_col >= 0:
-                    row[trans_col] = 'pendente'
-                sheets_update(f'LIVES!A{i+1}:L{i+1}', [row])
-                # Clean local files to force re-download
-                import shutil
-                job_dir = os.path.join(os.path.dirname(__file__), '..', 'lives', video_id)
-                if os.path.exists(job_dir):
-                    shutil.rmtree(job_dir)
-                found = True
-                break
+        # Clean local files to force re-download
+        import shutil
+        job_dir = os.path.join(os.path.dirname(__file__), '..', 'lives', video_id)
+        if os.path.exists(job_dir):
+            shutil.rmtree(job_dir)
 
-        if found:
-            self.send_json(200, {'ok': True, 'video_id': video_id})
-        else:
-            self.send_json(404, {'error': f'video_id {video_id} not found'})
+        self.send_json(200, {'ok': True, 'video_id': video_id})
 
     def handle_clip_pause(self, data):
         """Toggle paused status of a clip in clips_manifest.json."""
@@ -1042,57 +1069,20 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.send_json(200, {'ok': True, 'deleted': deleted, 'freed_mb': round(freed_mb, 1)})
 
     def handle_live_delete(self, data):
-        """Deleta live: remove arquivos do disco E remove da planilha LIVES."""
+        """Deleta live: remove arquivos do disco E remove do banco de dados."""
         import shutil
         video_id = data.get('video_id', '')
         if not video_id:
             self.send_json(400, {'error': 'video_id required'})
             return
 
-        # Remove da planilha
-        result = sheets_get('LIVES!A1:M1000')
-        rows = result.get('values', [])
-        if len(rows) < 2:
-            self.send_json(404, {'error': 'no lives'})
-            return
-
-        headers = rows[0]
-        vid_col = headers.index('video_id') if 'video_id' in headers else 0
-        found_row = None
-        for i, row in enumerate(rows[1:], 2):
-            vid = row[vid_col] if vid_col < len(row) else ''
-            if vid == video_id:
-                found_row = i
-                break
-
-        if not found_row:
+        live = db.get_live(video_id)
+        if not live:
             self.send_json(404, {'error': f'{video_id} not found'})
             return
 
-        # Delete row from sheet
-        token = get_access_token()
-        delete_body = json.dumps({
-            'requests': [{
-                'deleteDimension': {
-                    'range': {
-                        'sheetId': 0,
-                        'dimension': 'ROWS',
-                        'startIndex': found_row - 1,
-                        'endIndex': found_row
-                    }
-                }
-            }]
-        }).encode()
-        req = urllib.request.Request(
-            f'https://sheets.googleapis.com/v4/spreadsheets/{SPREADSHEET_ID}:batchUpdate',
-            data=delete_body, method='POST')
-        req.add_header('Authorization', f'Bearer {token}')
-        req.add_header('Content-Type', 'application/json')
-        try:
-            urllib.request.urlopen(req)
-        except Exception as e:
-            self.send_json(500, {'error': f'Erro ao deletar da planilha: {e}'})
-            return
+        # Remove from database
+        db.delete_live(video_id)
 
         # Remove arquivos do disco
         lives_dir = os.environ.get('LIVES_DIR', os.path.join(PROJECT_ROOT, 'lives'))
@@ -1193,35 +1183,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_json(400, {'error': 'live_video_id and title required'})
             return
 
-        pub_result = sheets_get('PUBLICADOS!A1:J1000')
-        pub_rows = pub_result.get('values', [])
-        if len(pub_rows) < 2:
-            self.send_json(404, {'error': 'no publicados found'})
-            return
-
-        headers = pub_rows[0]
-        id_col = headers.index('clip_video_id') if 'clip_video_id' in headers else 0
-        title_col = headers.index('clip_titulo') if 'clip_titulo' in headers else 1
-
-        rows_to_clear = []
-        for i, row in enumerate(pub_rows[1:], 2):
-            vid = row[id_col] if len(row) > id_col else ''
-            t = row[title_col] if len(row) > title_col else ''
-            if vid in ('erro_upload', 'publicando', '') and t == title:
-                rows_to_clear.append(i)
-
-        if not rows_to_clear:
+        cleared = db.clear_erro_publicados(title)
+        if not cleared:
             self.send_json(404, {'error': 'no erro_upload found for this clip'})
             return
-
-        for row_num in rows_to_clear:
-            clear_range = f'PUBLICADOS!A{row_num}:J{row_num}'
-            token = get_access_token()
-            url = f'https://sheets.googleapis.com/v4/spreadsheets/{SPREADSHEET_ID}/values/{urllib.parse.quote(clear_range)}:clear'
-            req = urllib.request.Request(url, data=b'{}', method='POST')
-            req.add_header('Authorization', f'Bearer {token}')
-            req.add_header('Content-Type', 'application/json')
-            urllib.request.urlopen(req)
 
         lives_dir = os.environ.get('LIVES_DIR', os.path.join(PROJECT_ROOT, 'lives'))
         manifest_path = os.path.join(lives_dir, live_id, 'clips_manifest.json')
@@ -1264,21 +1229,32 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
             if new_vid:
                 handle_thumbnail(new_vid, clip_title, clip.get('description', ''), config)
-                sheets_append('PUBLICADOS!A1', [[
-                    new_vid, clip['title'],
-                    f'https://www.youtube.com/watch?v={new_vid}',
-                    live_id, '', now, privacy,
-                    str(clip.get('duration', '')),
-                    ','.join(clip.get('tags', [])), '27'
-                ]])
+                db.add_publicado({
+                    'clip_video_id': new_vid,
+                    'clip_titulo': clip['title'],
+                    'clip_url': f'https://www.youtube.com/watch?v={new_vid}',
+                    'live_video_id': live_id,
+                    'live_titulo': '',
+                    'data_publicacao': now,
+                    'privacy': privacy,
+                    'duracao': str(clip.get('duration', '')),
+                    'tags': ','.join(clip.get('tags', [])),
+                    'categoria': '27'
+                })
                 update_status('idle', f'Retry OK: {clip_title[:50]}')
             else:
-                sheets_append('PUBLICADOS!A1', [[
-                    'erro_upload', clip['title'],
-                    '', live_id, '', now, privacy,
-                    str(clip.get('duration', '')),
-                    ','.join(clip.get('tags', [])), '27'
-                ]])
+                db.add_publicado({
+                    'clip_video_id': 'erro_upload',
+                    'clip_titulo': clip['title'],
+                    'clip_url': '',
+                    'live_video_id': live_id,
+                    'live_titulo': '',
+                    'data_publicacao': now,
+                    'privacy': privacy,
+                    'duracao': str(clip.get('duration', '')),
+                    'tags': ','.join(clip.get('tags', [])),
+                    'categoria': '27'
+                })
                 update_status('idle', f'Retry falhou: {clip_title[:50]}')
 
         threading.Thread(target=do_retry, daemon=True).start()
@@ -1292,30 +1268,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_json(400, {'error': 'live_video_id and title required'})
             return
 
-        pub_result = sheets_get('PUBLICADOS!A1:J1000')
-        pub_rows = pub_result.get('values', [])
-        if len(pub_rows) < 2:
-            self.send_json(404, {'error': 'no publicados'})
-            return
-
-        headers = pub_rows[0]
-        id_col = headers.index('clip_video_id') if 'clip_video_id' in headers else 0
-        title_col = headers.index('clip_titulo') if 'clip_titulo' in headers else 1
-
-        cleared = 0
-        for i, row in enumerate(pub_rows[1:], 2):
-            vid = row[id_col] if len(row) > id_col else ''
-            t = row[title_col] if len(row) > title_col else ''
-            if vid in ('erro_upload', 'publicando', '') and t == title:
-                clear_range = f'PUBLICADOS!A{i}:J{i}'
-                token = get_access_token()
-                url = f'https://sheets.googleapis.com/v4/spreadsheets/{SPREADSHEET_ID}/values/{urllib.parse.quote(clear_range)}:clear'
-                req = urllib.request.Request(url, data=b'{}', method='POST')
-                req.add_header('Authorization', f'Bearer {token}')
-                req.add_header('Content-Type', 'application/json')
-                urllib.request.urlopen(req)
-                cleared += 1
-
+        cleared = db.clear_erro_publicados(title)
         self.send_json(200, {'ok': True, 'cleared': cleared})
 
 

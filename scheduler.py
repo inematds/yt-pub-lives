@@ -2,7 +2,7 @@
 """
 Scheduler para pipeline yt-pub-lives.
 Roda em loop, checa a cada minuto se esta na hora de cortar ou publicar.
-Le configuracao da planilha CONFIG.
+Le configuracao do banco SQLite local.
 """
 
 import json
@@ -33,8 +33,9 @@ if os.path.exists(ENV_FILE):
                 key, val = line.split('=', 1)
                 os.environ[key] = val
 
-SPREADSHEET_ID = os.environ.get('SPREADSHEET_ID', '')
 LIVES_DIR = os.environ.get('LIVES_DIR', os.path.join(PROJECT_ROOT, 'lives'))
+
+import db
 
 
 def log(msg):
@@ -84,61 +85,14 @@ def get_access_token():
     return resp['access_token']
 
 
-def sheets_get(range_str):
-    token = get_access_token()
-    encoded = urllib.parse.quote(range_str)
-    url = f'https://sheets.googleapis.com/v4/spreadsheets/{SPREADSHEET_ID}/values/{encoded}'
-    req = urllib.request.Request(url)
-    req.add_header('Authorization', f'Bearer {token}')
-    try:
-        resp = urllib.request.urlopen(req)
-        return json.loads(resp.read())
-    except urllib.error.HTTPError as e:
-        return {'error': e.read().decode(), 'status': e.code}
-
-
-def sheets_update(range_str, values):
-    token = get_access_token()
-    encoded = urllib.parse.quote(range_str)
-    url = f'https://sheets.googleapis.com/v4/spreadsheets/{SPREADSHEET_ID}/values/{encoded}?valueInputOption=RAW'
-    body = json.dumps({'range': range_str, 'majorDimension': 'ROWS', 'values': values}).encode()
-    req = urllib.request.Request(url, data=body, method='PUT')
-    req.add_header('Authorization', f'Bearer {token}')
-    req.add_header('Content-Type', 'application/json')
-    try:
-        resp = urllib.request.urlopen(req)
-        return json.loads(resp.read())
-    except urllib.error.HTTPError as e:
-        return {'error': e.read().decode()}
-
-
 def load_config():
-    """Le CONFIG da planilha e retorna dict."""
-    result = sheets_get('CONFIG!A1:B200')
-    rows = result.get('values', [])
-    config = {}
-    for row in rows[1:]:
-        if len(row) >= 2:
-            config[row[0]] = row[1]
-    return config
+    """Le CONFIG do banco local."""
+    return db.load_config()
 
 
 def get_pending_lives():
-    """Retorna lives pendentes (mais antigas primeiro)."""
-    result = sheets_get('LIVES!A1:M1000')
-    rows = result.get('values', [])
-    if len(rows) < 2:
-        return [], rows
-    headers = rows[0]
-    lives = []
-    for i, row in enumerate(rows[1:], 2):  # row_num starts at 2 (1-indexed, skip header)
-        live = {'_row': i}
-        for j, h in enumerate(headers):
-            live[h] = row[j] if j < len(row) else ''
-        lives.append(live)
-    # Oldest first
-    lives.sort(key=lambda l: l.get('data_live', ''))
-    return lives, rows
+    """Retorna lives (mais antigas primeiro)."""
+    return db.get_lives()
 
 
 def get_matching_schedule(horarios_str):
@@ -365,6 +319,43 @@ def _add_pending_thumb(video_id, title):
             json.dump(pending, f, indent=2, ensure_ascii=False)
 
 
+def _apply_saved_preset(preset_name, config, yt_thumb):
+    """Aplica preset salvo (customizado) ou hardcoded."""
+    saved = config.get(f'preset_{preset_name}', '')
+    if saved:
+        try:
+            preset_data = json.loads(saved)
+            # Mapear campos JS para env vars
+            field_map = {
+                'font': 'DESIGN_FONT', 'fontSize': 'DESIGN_FONT_SIZE', 'lastLineScale': 'DESIGN_LAST_LINE_SCALE',
+                'lineHeight': 'DESIGN_LINE_HEIGHT', 'tracking': 'DESIGN_TRACKING', 'case': 'DESIGN_CASE',
+                'textColor': 'DESIGN_TEXT_COLOR', 'highlightColor': 'DESIGN_HIGHLIGHT_COLOR',
+                'highlightEnabled': 'DESIGN_HIGHLIGHT_ENABLED', 'accentColor': 'DESIGN_ACCENT_COLOR',
+                'accentWidth': 'DESIGN_ACCENT_WIDTH', 'accentHeight': 'DESIGN_ACCENT_HEIGHT',
+                'accentGap': 'DESIGN_ACCENT_GAP', 'accentEnabled': 'DESIGN_ACCENT_ENABLED',
+                'strokeEnabled': 'DESIGN_STROKE_ENABLED', 'strokeColor': 'DESIGN_STROKE_COLOR',
+                'strokeSize': 'DESIGN_STROKE_SIZE', 'shadowType': 'DESIGN_SHADOW_TYPE',
+                'shadowColor': 'DESIGN_SHADOW_COLOR', 'shadowSize': 'DESIGN_SHADOW_SIZE',
+                'shadowOpacity': 'DESIGN_SHADOW_OPACITY', 'gradient': 'DESIGN_GRADIENT',
+                'gradientOpacity': 'DESIGN_GRADIENT_OPACITY', 'gradientCoverage': 'DESIGN_GRADIENT_COVERAGE',
+                'brand': 'DESIGN_BRAND', 'brandFont': 'DESIGN_BRAND_FONT', 'brandSize': 'DESIGN_BRAND_SIZE',
+                'brandColor': 'DESIGN_BRAND_COLOR', 'brandPosition': 'DESIGN_BRAND_POSITION',
+                'position': 'DESIGN_POSITION'
+            }
+            for js_key, env_key in field_map.items():
+                if js_key in preset_data:
+                    os.environ[env_key] = str(preset_data[js_key])
+            log(f'  Preset customizado: {preset_name}')
+            return
+        except Exception:
+            pass
+    # Fallback para preset hardcoded
+    if preset_name in yt_thumb.PRESETS:
+        for k, v in yt_thumb.PRESETS[preset_name].items():
+            os.environ[k] = v
+    log(f'  [thumb] Preset ativo: {preset_name}')
+
+
 def handle_thumbnail(video_id, title, description, config):
     """Generate and upload thumbnail based on config thumb_mode."""
     thumb_mode = config.get('thumb_mode', 'none')
@@ -428,7 +419,7 @@ def handle_thumbnail(video_id, title, description, config):
                         'design_shadow_opacity', 'design_gradient', 'design_gradient_opacity',
                         'design_gradient_coverage', 'design_brand', 'design_brand_font',
                         'design_brand_size', 'design_brand_color', 'design_brand_position',
-                        'design_position', 'design_fallback_preset'):
+                        'design_position'):
                 val = config.get(key, '')
                 if val:
                     os.environ[key.upper()] = val
@@ -441,6 +432,10 @@ def handle_thumbnail(video_id, title, description, config):
                 if random_list:
                     chosen = random.choice(random_list)
                     os.environ['DESIGN_RANDOM_PRESET'] = chosen
+                    # Carregar preset customizado se existir
+                    saved = config.get(f'preset_{chosen}', '')
+                    if saved:
+                        os.environ['DESIGN_SAVED_PRESET'] = saved
                     log(f'  Random preset: {chosen} (de {len(random_list)} opcoes)')
 
             # Import generate_thumbnail from scripts/yt-thumbnail
@@ -456,11 +451,7 @@ def handle_thumbnail(video_id, title, description, config):
                 yt_thumb.generate_thumbnail(title, description, thumb_path)
             except Exception as api_err:
                 log(f'  API thumbnail failed: {api_err}, using fallback')
-                fallback_preset = config.get('design_fallback_preset', '')
-                if fallback_preset and fallback_preset in yt_thumb.PRESETS:
-                    for k, v in yt_thumb.PRESETS[fallback_preset].items():
-                        os.environ[k] = v
-                    log(f'  Fallback preset: {fallback_preset}')
+                _apply_saved_preset('fallback', config, yt_thumb)
                 bg = yt_thumb.create_gradient_bg()
                 yt_thumb.compose_thumbnail(bg, title[:70], '', thumb_path)
 
@@ -511,23 +502,8 @@ def handle_thumbnail(video_id, title, description, config):
             img.save(thumb_path, 'JPEG', quality=92)
 
         elif thumb_mode == 'fallback':
-            # Fallback: gradiente escuro + texto com design configurado
+            # Fallback: sempre usa preset "fallback"
             log(f'  Generating fallback thumbnail for {video_id}')
-            # Set design config env vars
-            for key in ('design_font', 'design_font_size', 'design_last_line_scale',
-                        'design_line_height', 'design_tracking', 'design_case',
-                        'design_text_color', 'design_highlight_color', 'design_highlight_enabled',
-                        'design_accent_color', 'design_accent_width',
-                        'design_accent_height', 'design_accent_gap', 'design_accent_enabled',
-                        'design_stroke_enabled', 'design_stroke_color', 'design_stroke_size',
-                        'design_shadow_type', 'design_shadow_color', 'design_shadow_size',
-                        'design_shadow_opacity', 'design_gradient', 'design_gradient_opacity',
-                        'design_gradient_coverage', 'design_brand', 'design_brand_font',
-                        'design_brand_size', 'design_brand_color', 'design_brand_position',
-                        'design_position', 'design_fallback_preset'):
-                val = config.get(key, '')
-                if val:
-                    os.environ[key.upper()] = val
 
             import types
             script_path = os.path.join(SCRIPTS_DIR, 'yt-thumbnail')
@@ -536,11 +512,7 @@ def handle_thumbnail(video_id, title, description, config):
             with open(script_path) as _f:
                 exec(compile(_f.read(), script_path, 'exec'), yt_thumb.__dict__)
 
-            # Aplicar preset de fallback se configurado
-            fallback_preset = config.get('design_fallback_preset', '')
-            if fallback_preset and fallback_preset in yt_thumb.PRESETS:
-                for k, v in yt_thumb.PRESETS[fallback_preset].items():
-                    os.environ[k] = v
+            _apply_saved_preset('fallback', config, yt_thumb)
 
             bg = yt_thumb.create_gradient_bg()
             yt_thumb.compose_thumbnail(bg, title[:70], '', thumb_path)
@@ -573,28 +545,18 @@ def handle_thumbnail(video_id, title, description, config):
         log(f'  Thumbnail error (non-fatal): {e}')
 
 
-def update_live_status(row_num, headers, row_data, status_field, new_status, extra=None):
-    """Atualiza status de uma live na planilha."""
-    if status_field in headers:
-        col = headers.index(status_field)
-        while len(row_data) <= col:
-            row_data.append('')
-        row_data[col] = new_status
+def update_live_status(video_id, status_field, new_status, extra=None):
+    """Atualiza status de uma live no banco local."""
+    fields = {status_field: new_status}
     if extra:
-        for field, val in extra.items():
-            if field in headers:
-                col = headers.index(field)
-                while len(row_data) <= col:
-                    row_data.append('')
-                row_data[col] = str(val)
-    sheets_update(f'LIVES!A{row_num}:M{row_num}', [row_data])
+        fields.update(extra)
+    db.update_live(video_id, **fields)
 
 
 def process_cortes(config):
     """Processa cortes de lives pendentes."""
     max_per_run = int(config.get('corte_max_por_dia', '3'))
-    lives, all_rows = get_pending_lives()
-    headers = all_rows[0] if all_rows else []
+    lives = get_pending_lives()
 
     pendentes = [l for l in lives if l.get('status_cortes') not in ('concluido', 'erro')]
     if not pendentes:
@@ -605,16 +567,11 @@ def process_cortes(config):
 
     for live in pendentes[:max_per_run]:
         vid = live.get('video_id', '')
-        row_num = live['_row']
         if not vid:
             continue
 
-        # Get original row data
-        orig_row = all_rows[row_num - 1] if row_num - 1 < len(all_rows) else []
-
         success = run_corte(vid, config)
         if success:
-            # Check what was produced
             job_dir = os.path.join(LIVES_DIR, vid)
             topics_file = os.path.join(job_dir, 'topics.json')
             clips_dir = os.path.join(job_dir, 'clips')
@@ -627,19 +584,21 @@ def process_cortes(config):
 
             has_clips = os.path.isdir(clips_dir) and len(os.listdir(clips_dir)) > 0
 
-            update_live_status(row_num, headers, list(orig_row), 'status_transcricao', 'transcricao', {
+            update_live_status(vid, 'status_transcricao', 'transcricao', {
                 'status_cortes': 'concluido' if has_clips else 'pendente',
                 'qtd_clips': qtd_clips,
                 'data_corte': datetime.now().strftime('%Y-%m-%d %H:%M')
             })
         else:
-            update_live_status(row_num, headers, list(orig_row), 'status_cortes', 'erro')
+            update_live_status(vid, 'status_cortes', 'erro')
 
 
 _pub_lock = threading.Lock()
 
+_import_pub_lock = threading.Lock()
+
 def process_publicacao(config):
-    """Publica clips cortados que ainda nao foram publicados."""
+    """Publica clips de lives (exclui imports)."""
     if not _pub_lock.acquire(blocking=False):
         log('  Publicacao ja em andamento, pulando')
         return
@@ -648,12 +607,131 @@ def process_publicacao(config):
     finally:
         _pub_lock.release()
 
+def process_publicacao_imports(config):
+    """Publica clips de imports usando a fila propria (import_pub_horarios)."""
+    if not _import_pub_lock.acquire(blocking=False):
+        log('  Publicacao de imports ja em andamento, pulando')
+        return
+    try:
+        _process_publicacao_imports_inner(config)
+    finally:
+        _import_pub_lock.release()
+
+def _process_publicacao_imports_inner(config):
+    privacy = config.get('privacy_padrao', 'unlisted')
+    max_por_vez = int(config.get('pub_max_por_vez', '2') or '2')
+    log(f'  [imports] Buscando imports para publicar (privacy={privacy}, max={max_por_vez})...')
+    lives = [l for l in get_pending_lives() if l.get('video_id', '').startswith('import_')]
+
+    found_any = False
+    for live in lives:
+        vid = live.get('video_id', '')
+        qtd_clips = int(live.get('qtd_clips', '0') or '0')
+        publicados_count = int(live.get('clips_publicados', '0') or '0')
+
+        if live.get('status_cortes') != 'concluido' or not vid:
+            continue
+        if publicados_count >= qtd_clips or qtd_clips == 0:
+            continue
+
+        # Respeita publish_at do manifest se definido
+        obs = live.get('observacoes', '')
+        import re as _re
+        pa_match = _re.search(r'publish_at=(\d{2}:\d{2})', obs)
+        if pa_match:
+            publish_at = pa_match.group(1)
+            now_hm = datetime.now().strftime('%H:%M')
+            if now_hm < publish_at:
+                log(f'  Import {vid}: aguardando publish_at={publish_at} (agora={now_hm}), pulando')
+                continue
+
+        found_any = True
+        log(f'  [import] {vid}: {qtd_clips} clips, {publicados_count} publicados')
+
+        job_dir = os.path.join(LIVES_DIR, vid)
+        manifest_file = os.path.join(job_dir, 'clips_manifest.json')
+        if not os.path.exists(manifest_file):
+            log(f'  Sem manifest para {vid}, pulando')
+            continue
+
+        with open(manifest_file) as f:
+            clips = json.load(f)
+
+        pub_records = db.get_publicados(live_video_id=vid)
+        published_titles = set()
+        erro_titles = set()
+        for p in pub_records:
+            vid_status = p.get('clip_video_id', '')
+            titulo = p.get('clip_titulo', '')
+            if vid_status in ('erro_upload', 'publicando', ''):
+                erro_titles.add(titulo)
+            else:
+                published_titles.add(titulo)
+        all_known_titles = published_titles | erro_titles
+
+        count = 0
+        for clip in clips:
+            if count >= max_por_vez:
+                break
+            if clip['title'] in all_known_titles:
+                continue
+            if clip.get('paused', False):
+                continue
+            if not os.path.exists(clip['file']):
+                log(f'  Arquivo nao encontrado: {clip["file"]}')
+                continue
+
+            clip_title = clip['title']
+            clip_desc = clip.get('description', '')
+            clip_privacy = clip.get('privacy', privacy)
+
+            now = datetime.now().strftime('%Y-%m-%d %H:%M')
+            lock_row_id = db.add_publicado({
+                'clip_video_id': 'publicando',
+                'clip_titulo': clip['title'],
+                'clip_url': '',
+                'live_video_id': vid,
+                'live_titulo': live.get('titulo', ''),
+                'data_publicacao': now,
+                'privacy': clip_privacy,
+                'duracao': str(clip.get('duration', '')),
+                'tags': ','.join(clip.get('tags', [])) if isinstance(clip.get('tags'), list) else clip.get('tags', ''),
+                'categoria': '27'
+            })
+
+            update_status('publicando', f'[import] Enviando: {clip_title[:50]}', vid, step='upload', clip_title=clip_title[:50])
+            new_vid = run_publicacao(vid, clip['file'], clip_title, clip_desc,
+                                     ','.join(clip.get('tags', [])) if isinstance(clip.get('tags'), list) else clip.get('tags', ''),
+                                     clip_privacy)
+
+            if new_vid:
+                update_status('publicando', f'[import] Thumbnail...', vid, step='thumbnail', clip_id=new_vid)
+                handle_thumbnail(new_vid, clip_title, clip_desc, config)
+                db.update_publicado(lock_row_id,
+                    clip_video_id=new_vid,
+                    clip_titulo=clip['title'],
+                    clip_url=f'https://www.youtube.com/watch?v={new_vid}'
+                )
+                count += 1
+                published_titles.add(clip['title'])
+                log(f'  [import] Publicado: {clip["title"][:50]} -> {new_vid}')
+            else:
+                db.update_publicado(lock_row_id, clip_video_id='erro_upload')
+                count += 1
+                log(f'  [import] Falha: {clip["title"][:50]}')
+
+        actual_published = sum(1 for c in clips if c['title'] in published_titles)
+        if actual_published != publicados_count:
+            update_live_status(vid, 'clips_publicados', str(actual_published))
+
+    if not found_any:
+        log('  [imports] Nenhum import pendente para publicar')
+
 def _process_publicacao_inner(config):
     privacy = config.get('privacy_padrao', 'unlisted')
     max_por_vez = int(config.get('pub_max_por_vez', '2') or '2')
     log(f'  Buscando lives para publicar (privacy={privacy}, max={max_por_vez})...')
-    lives, all_rows = get_pending_lives()
-    headers = all_rows[0] if all_rows else []
+    lives = get_pending_lives()
     log(f'  {len(lives)} lives encontradas')
 
     # Find lives with clips but not all published
@@ -664,13 +742,17 @@ def _process_publicacao_inner(config):
             continue
 
         qtd_clips = int(live.get('qtd_clips', '0') or '0')
-        publicados = int(live.get('clips_publicados', '0') or '0')
+        publicados_count = int(live.get('clips_publicados', '0') or '0')
 
-        if publicados >= qtd_clips or qtd_clips == 0:
+        if publicados_count >= qtd_clips or qtd_clips == 0:
+            continue
+
+        # Imports tem fila propria — excluir daqui
+        if vid.startswith('import_'):
             continue
 
         found_any = True
-        log(f'  Live {vid}: {qtd_clips} clips, {publicados} publicados')
+        log(f'  Live {vid}: {qtd_clips} clips, {publicados_count} publicados')
 
         job_dir = os.path.join(LIVES_DIR, vid)
         manifest_file = os.path.join(job_dir, 'clips_manifest.json')
@@ -682,23 +764,17 @@ def _process_publicacao_inner(config):
         with open(manifest_file) as f:
             clips = json.load(f)
 
-        # Check which clips are already in the spreadsheet (any status = skip)
-        pub_result = sheets_get('PUBLICADOS!A1:J1000')
-        pub_rows = pub_result.get('values', [])
+        # Check which clips are already in the DB
+        pub_records = db.get_publicados()
         published_titles = set()
         erro_titles = set()
-        if len(pub_rows) > 1:
-            pub_headers = pub_rows[0]
-            id_col = pub_headers.index('clip_video_id') if 'clip_video_id' in pub_headers else 0
-            title_col = pub_headers.index('clip_titulo') if 'clip_titulo' in pub_headers else 1
-            for row in pub_rows[1:]:
-                if len(row) > title_col:
-                    vid_status = row[id_col] if len(row) > id_col else ''
-                    if vid_status in ('erro_upload', 'publicando', ''):
-                        erro_titles.add(row[title_col])
-                    else:
-                        published_titles.add(row[title_col])
-        # Títulos que já estão na planilha (qualquer status) não devem ser re-publicados
+        for p in pub_records:
+            vid_status = p.get('clip_video_id', '')
+            titulo = p.get('clip_titulo', '')
+            if vid_status in ('erro_upload', 'publicando', ''):
+                erro_titles.add(titulo)
+            else:
+                published_titles.add(titulo)
         all_known_titles = published_titles | erro_titles
 
         count = 0
@@ -710,7 +786,7 @@ def _process_publicacao_inner(config):
 
             if clip['title'] in all_known_titles:
                 status = 'publicado' if clip['title'] in published_titles else 'erro/pendente'
-                log(f'  Ja na planilha ({status}): {clip["title"][:50]}')
+                log(f'  Ja no banco ({status}): {clip["title"][:50]}')
                 continue
 
             if clip.get('paused', False):
@@ -724,33 +800,21 @@ def _process_publicacao_inner(config):
             clip_title = clip['title']
             clip_desc = clip.get('description', '')
 
-            # Lock na planilha: marcar como "publicando" ANTES de iniciar
+            # Lock no banco: marcar como "publicando" ANTES de iniciar
             now = datetime.now().strftime('%Y-%m-%d %H:%M')
-            lock_token = get_access_token()
-            lock_encoded = urllib.parse.quote('PUBLICADOS!A1')
-            lock_url = f'https://sheets.googleapis.com/v4/spreadsheets/{SPREADSHEET_ID}/values/{lock_encoded}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS'
-            lock_body = json.dumps({
-                'range': 'PUBLICADOS!A1',
-                'majorDimension': 'ROWS',
-                'values': [[
-                    'publicando', clip['title'],
-                    '', vid, live.get('titulo', ''),
-                    now, privacy,
-                    str(clip.get('duration', '')),
-                    ','.join(clip.get('tags', [])),
-                    '27'
-                ]]
-            }).encode()
-            lock_req = urllib.request.Request(lock_url, data=lock_body, method='POST')
-            lock_req.add_header('Authorization', f'Bearer {lock_token}')
-            lock_req.add_header('Content-Type', 'application/json')
-            try:
-                lock_resp = json.loads(urllib.request.urlopen(lock_req).read())
-                lock_range = lock_resp.get('updates', {}).get('updatedRange', '')
-                log(f'  Reservado na planilha: {clip["title"][:50]}')
-            except Exception as e:
-                log(f'  Erro ao reservar na planilha: {e}, pulando clip')
-                continue
+            lock_row_id = db.add_publicado({
+                'clip_video_id': 'publicando',
+                'clip_titulo': clip['title'],
+                'clip_url': '',
+                'live_video_id': vid,
+                'live_titulo': live.get('titulo', ''),
+                'data_publicacao': now,
+                'privacy': privacy,
+                'duracao': str(clip.get('duration', '')),
+                'tags': ','.join(clip.get('tags', [])),
+                'categoria': '27'
+            })
+            log(f'  Reservado no banco: {clip["title"][:50]}')
 
             # Refinar titulo e descricao com IA
             update_status('publicando', f'Refinando com IA: {clip_title[:50]}', vid, step='refine', clip_title=clip_title[:50])
@@ -775,68 +839,28 @@ def _process_publicacao_inner(config):
                     clip.get('description', ''), config
                 )
 
-                # Atualizar linha na planilha: "publicando" -> video_id real
-                try:
-                    import re as _re
-                    lock_match = _re.search(r'!A(\d+)', lock_range)
-                    if lock_match:
-                        lock_row = int(lock_match.group(1))
-                        update_range = f'PUBLICADOS!A{lock_row}:C{lock_row}'
-                        update_token = get_access_token()
-                        update_encoded = urllib.parse.quote(update_range)
-                        update_url = f'https://sheets.googleapis.com/v4/spreadsheets/{SPREADSHEET_ID}/values/{update_encoded}?valueInputOption=RAW'
-                        update_body = json.dumps({
-                            'range': update_range,
-                            'majorDimension': 'ROWS',
-                            'values': [[
-                                new_vid, clip['title'],
-                                f'https://www.youtube.com/watch?v={new_vid}'
-                            ]]
-                        }).encode()
-                        update_req = urllib.request.Request(update_url, data=update_body, method='PUT')
-                        update_req.add_header('Authorization', f'Bearer {update_token}')
-                        update_req.add_header('Content-Type', 'application/json')
-                        urllib.request.urlopen(update_req)
-                except Exception as e:
-                    log(f'  Erro ao atualizar planilha: {e}')
+                # Atualizar no banco: "publicando" -> video_id real
+                db.update_publicado(lock_row_id,
+                    clip_video_id=new_vid,
+                    clip_titulo=clip['title'],
+                    clip_url=f'https://www.youtube.com/watch?v={new_vid}'
+                )
 
                 count += 1
                 published_titles.add(clip['title'])
                 log(f'  Publicado: {clip["title"][:50]} -> {new_vid}')
             else:
-                # Upload falhou: remover linha de lock
-                try:
-                    import re as _re
-                    lock_match = _re.search(r'!A(\d+)', lock_range)
-                    if lock_match:
-                        lock_row = int(lock_match.group(1))
-                        # Limpar a linha (marcar como erro)
-                        err_range = f'PUBLICADOS!A{lock_row}'
-                        err_token = get_access_token()
-                        err_encoded = urllib.parse.quote(err_range)
-                        err_url = f'https://sheets.googleapis.com/v4/spreadsheets/{SPREADSHEET_ID}/values/{err_encoded}?valueInputOption=RAW'
-                        err_body = json.dumps({
-                            'range': err_range,
-                            'majorDimension': 'ROWS',
-                            'values': [['erro_upload']]
-                        }).encode()
-                        err_req = urllib.request.Request(err_url, data=err_body, method='PUT')
-                        err_req.add_header('Authorization', f'Bearer {err_token}')
-                        err_req.add_header('Content-Type', 'application/json')
-                        urllib.request.urlopen(err_req)
-                except Exception as e:
-                    log(f'  Erro ao limpar lock na planilha: {e}')
-                count += 1  # tentativa conta como 1, independente do resultado
+                # Upload falhou: marcar como erro
+                db.update_publicado(lock_row_id, clip_video_id='erro_upload')
+                count += 1
                 log(f'  Falha ao publicar: {clip["title"][:50]}')
 
         # Update counter if clips were published OR if counter is out of sync
         actual_published = sum(1 for c in clips if c['title'] in published_titles)
         new_total = actual_published
-        if new_total != publicados:
-            row_num = live['_row']
-            orig_row = list(all_rows[row_num - 1]) if row_num - 1 < len(all_rows) else []
-            update_live_status(row_num, headers, orig_row, 'clips_publicados', str(new_total))
-            log(f'  Atualizado clips_publicados: {publicados} -> {new_total} para {vid}')
+        if new_total != publicados_count:
+            update_live_status(vid, 'clips_publicados', str(new_total))
+            log(f'  Atualizado clips_publicados: {publicados_count} -> {new_total} para {vid}')
 
         if count > 0:
             log(f'  {count} tentativa(s) para {vid}')
@@ -865,8 +889,9 @@ def main():
     # Rastreia qual horario agendado ja foi executado (evita repetir)
     startup_corte = get_matching_schedule(config.get('corte_horarios', '')) if config else None
     startup_pub = get_matching_schedule(config.get('pub_horarios', '')) if config else None
-    last_executed = {'cortes': startup_corte, 'pub': startup_pub}
-    log(f'  Agendamento: cortes={startup_corte or "nenhum agora"}, pub={startup_pub or "nenhum agora"}')
+    startup_import_pub = get_matching_schedule(config.get('import_pub_horarios', '')) if config else None
+    last_executed = {'cortes': startup_corte, 'pub': startup_pub, 'import_pub': startup_import_pub}
+    log(f'  Agendamento: cortes={startup_corte or "nenhum agora"}, pub={startup_pub or "nenhum agora"}, import_pub={startup_import_pub or "nenhum agora"}')
 
     def run_cortes_thread(cfg):
         """Roda cortes em thread separada para nao bloquear publicacao."""
@@ -914,8 +939,37 @@ def main():
             if not pub_match and last_executed['pub']:
                 last_executed['pub'] = None
 
-            # --- Auto-sync (meia-noite) ---
+            # --- Publicacao de imports (fila propria via import_pub_horarios) ---
+            import_pub_horarios = config.get('import_pub_horarios', '')
+            import_pub_paused = config.get('pipeline_imports_paused', 'false') == 'true'
+            import_pub_match = get_matching_schedule(import_pub_horarios) if import_pub_horarios else None
+
+            if not import_pub_paused and import_pub_match:
+                if last_executed['import_pub'] != import_pub_match:
+                    last_executed['import_pub'] = import_pub_match
+                    log(f'==> Hora de publicar imports! (agendado: {import_pub_match})')
+                    process_publicacao_imports(config)
+
+            if not import_pub_match and last_executed.get('import_pub'):
+                last_executed['import_pub'] = None
+
+            # --- Import worker (verifica a cada hora ou se import_auto=true) ---
             now_hm = datetime.now().strftime('%H:%M')
+            import_auto = config.get('import_auto', 'false') == 'true'
+            if import_auto:
+                now_h = datetime.now().strftime('%H')
+                if last_executed.get('import') != now_h:
+                    last_executed['import'] = now_h
+                    try:
+                        import import_worker
+                        results = import_worker.process_imports(config)
+                        novos = [r for r in results if r.get('ok')]
+                        if novos:
+                            log(f'==> Import: {len(novos)} lote(s) importado(s) para publicacao')
+                    except Exception as e:
+                        log(f'ERRO no import_worker: {e}')
+
+            # --- Auto-sync (meia-noite) ---
             sync_auto = config.get('sync_auto', 'false') == 'true'
             if sync_auto and now_hm == '00:00':
                 if last_executed.get('sync') != '00:00':
@@ -957,7 +1011,8 @@ def main():
 
 
 def acquire_lock():
-    """Garante que apenas 1 instancia do scheduler rode por projeto."""
+    """Garante que apenas 1 instancia do scheduler rode por projeto.
+    Se o PID no lock nao existe mais, remove o lock stale e tenta de novo."""
     import fcntl
     lock_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.scheduler.lock')
     lock_file = open(lock_path, 'w')
@@ -965,10 +1020,24 @@ def acquire_lock():
         fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
         lock_file.write(str(os.getpid()))
         lock_file.flush()
-        return lock_file  # manter aberto enquanto o processo roda
+        return lock_file
     except OSError:
-        print(f'[ERRO] Outro scheduler ja esta rodando (lock: {lock_path}). Saindo.', file=sys.stderr)
-        sys.exit(1)
+        lock_file.close()
+        # Verificar se o PID no lock ainda existe
+        try:
+            with open(lock_path, 'r') as f:
+                old_pid = int(f.read().strip())
+            os.kill(old_pid, 0)  # checa se processo existe
+            print(f'[ERRO] Outro scheduler ja esta rodando (PID {old_pid}, lock: {lock_path}). Saindo.', file=sys.stderr)
+            sys.exit(1)
+        except (ValueError, ProcessLookupError, OSError):
+            log(f'Lock stale detectado (PID morto), removendo {lock_path}')
+            os.remove(lock_path)
+            lock_file = open(lock_path, 'w')
+            fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            lock_file.write(str(os.getpid()))
+            lock_file.flush()
+            return lock_file
 
 
 if __name__ == '__main__':

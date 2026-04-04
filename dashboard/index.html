@@ -160,6 +160,16 @@
   .config-tab-content { display: none; }
   .config-tab-content.active { display: block; }
 
+  #sheetTableContainer table { border-collapse: collapse; width: 100%; font-size: 0.78em; font-family: 'Courier New', monospace; }
+  #sheetTableContainer th { background: var(--card); padding: 4px 6px; border: 1px solid var(--border); position: sticky; top: 0; z-index: 1; font-size: 0.7em; color: var(--muted); text-align: left; }
+  #sheetTableContainer td { border: 1px solid var(--border); padding: 3px 6px; min-width: 60px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #sheetTableContainer td[contenteditable] { cursor: text; }
+  #sheetTableContainer td:focus { outline: 2px solid var(--accent); background: rgba(99,102,241,0.1); white-space: normal; word-break: break-all; }
+  #sheetTableContainer tr:hover td { background: rgba(255,255,255,0.03); }
+  #sheetTableContainer .row-num { color: var(--muted); font-size: 0.7em; text-align: right; min-width: 30px; max-width: 30px; user-select: none; background: var(--card); }
+  #sheetTableContainer .btn-del-row { cursor: pointer; color: var(--red); font-size: 0.7em; text-align: center; min-width: 20px; max-width: 20px; user-select: none; opacity: 0.4; }
+  #sheetTableContainer .btn-del-row:hover { opacity: 1; }
+
   .config-section h3 {
     font-size: 0.9rem;
     margin-bottom: 12px;
@@ -314,6 +324,7 @@
   .badge.pendente { background: rgba(234,179,8,0.15); color: var(--yellow); }
   .badge.erro { background: rgba(239,68,68,0.15); color: var(--red); }
   .badge.clickable { text-decoration: underline; cursor: pointer; }
+  .badge.import { background: rgba(139,92,246,0.15); color: #a78bfa; font-size: 0.7em; vertical-align: middle; }
 
   a { color: var(--accent); text-decoration: none; }
   a:hover { text-decoration: underline; }
@@ -681,12 +692,13 @@
 
 <div class="container">
   <header>
-    <h1><span>GWS</span> Lives & Clips <small style="font-size:0.5em;color:var(--muted)">- <span id="instanceName"></span> <a href="#" onclick="openModal('modalChangelog');return false" style="color:var(--accent);text-decoration:none" title="Ver changelog">v3.15.23</a></small>
+    <h1><span>INEMA</span> Lives & Clips <small style="font-size:0.5em;color:var(--muted)">- <span id="instanceName"></span> <a href="#" onclick="openModal('modalChangelog');return false" style="color:var(--accent);text-decoration:none" title="Ver changelog">v3.18.24</a></small>
       <span id="headerCanais" style="display:block;font-size:0.4em;font-weight:normal;margin-top:4px"></span>
     </h1>
     <div class="header-actions">
       <button id="btnCortes" onclick="togglePipeline('cortes')" class="danger small">Parar Cortes</button>
       <button id="btnPub" onclick="togglePipeline('pub')" class="danger small">Parar Publicacao</button>
+      <button id="btnImports" onclick="togglePipeline('imports')" class="danger small">Parar Imports</button>
       <button class="secondary" onclick="toggleConfig()">Configuracoes</button>
       <button onclick="toggleSyncPanel()" id="btnSync">Sincronizar Lives</button>
     </div>
@@ -711,11 +723,11 @@
         </div>
         <div class="config-field">
           <label>Data inicio</label>
-          <input type="date" id="syncDateFrom">
+          <input type="text" id="syncDateFrom" placeholder="YYYY-MM-DD" pattern="\d{4}-\d{2}-\d{2}" maxlength="10">
         </div>
         <div class="config-field">
           <label>Data fim</label>
-          <input type="date" id="syncDateTo">
+          <input type="text" id="syncDateTo" placeholder="YYYY-MM-DD" pattern="\d{4}-\d{2}-\d{2}" maxlength="10">
         </div>
         <div class="config-field">
           <label>Max lives</label>
@@ -739,7 +751,7 @@
   <div class="health-bar" id="healthBar">
     <span class="health-label">Sistema:</span>
     <span class="health-item"><span class="health-dot loading" id="hDotYtdlp"></span> yt-dlp</span>
-    <span class="health-item"><span class="health-dot loading" id="hDotSheets"></span> Sheets</span>
+    <span class="health-item"><span class="health-dot loading" id="hDotDatabase"></span> Database</span>
     <span class="health-item"><span class="health-dot loading" id="hDotIa"></span> API IA</span>
     <span class="health-item"><span class="health-dot loading" id="hDotThumb"></span> API Thumb</span>
     <span class="health-item"><span class="health-dot loading" id="hDotYoutube"></span> YouTube</span>
@@ -806,6 +818,8 @@
         <button class="config-tab" onclick="showConfigTab('prompts', this)">Prompts</button>
         <button class="config-tab" onclick="showConfigTab('manutencao', this)">Manutencao</button>
         <button class="config-tab" onclick="showConfigTab('design', this)">Design Thumb</button>
+        <button class="config-tab" onclick="showConfigTab('planilha', this)">Planilha</button>
+        <button class="config-tab" onclick="showConfigTab('imports', this)">Imports</button>
       </div>
       <button onclick="saveActiveTab(this)" id="btnSaveTop" style="padding:6px 20px;">Salvar</button>
     </div>
@@ -932,7 +946,7 @@
 
       <!-- Thumbnails -->
       <div class="config-section">
-        <h3>Thumbnails</h3>
+        <h3>Thumbnails <span id="thumbPresetLabel" style="font-size:0.7em;color:var(--accent);margin-left:8px;"></span></h3>
         <div class="config-grid" style="grid-template-columns: 1fr 1fr;">
           <div class="config-field">
             <label>Modo Thumbnail</label>
@@ -1132,33 +1146,10 @@
           <button class="small preset-btn" data-preset="darkacademia" onclick="applyThumbPreset('darkacademia')" style="padding:4px 10px;font-size:0.75em;background:#2C1810;color:#D4A574;border:1px solid #D4A574;">Academia</button>
           <button class="small preset-btn" data-preset="boldoutline" onclick="applyThumbPreset('boldoutline')" style="padding:4px 10px;font-size:0.75em;background:#000;color:#fff;border:2px solid #fff;">BoldOutline</button>
           <button class="small preset-btn" data-preset="elegantdark" onclick="applyThumbPreset('elegantdark')" style="padding:4px 10px;font-size:0.75em;background:#0a0a14;color:#C9B37E;border:1px solid #C9B37E;">Elegant</button>
+          <button class="small preset-btn" data-preset="tiktok" onclick="applyThumbPreset('tiktok')" style="padding:4px 10px;font-size:0.75em;background:#010101;color:#FE2C55;border:1px solid #25F4EE;">TikTok</button>
+          <button class="small preset-btn" data-preset="stories" onclick="applyThumbPreset('stories')" style="padding:4px 10px;font-size:0.75em;background:linear-gradient(135deg,#833ab4,#fd1d1d,#fcb045);color:#fff;border:1px solid #fff;">Stories</button>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <label style="font-size:0.8em;color:var(--muted);">Preset para fallback (sem imagem IA):</label>
-          <select id="cfgDesignFallbackPreset" style="padding:4px 8px;font-size:0.8rem;">
-            <option value="fallback">Fallback</option>
-            <option value="premium">Premium</option>
-            <option value="youtube">YouTube Bold</option>
-            <option value="clean">Clean</option>
-            <option value="neon">Neon</option>
-            <option value="mrbeast">MrBeast</option>
-            <option value="techreview">Tech Review</option>
-            <option value="tutorial">Tutorial</option>
-            <option value="breaking">Breaking News</option>
-            <option value="minimal">Minimalista</option>
-            <option value="cinematic">Cinematic</option>
-            <option value="gradient">Gradient</option>
-            <option value="splitscreen">Split VS</option>
-            <option value="colorpop">Color Pop</option>
-            <option value="retro">Retro</option>
-            <option value="3dextrude">3D Gold</option>
-            <option value="glassmorphism">Glass</option>
-            <option value="darkacademia">Dark Academia</option>
-            <option value="boldoutline">Bold Outline</option>
-            <option value="elegantdark">Elegant Dark</option>
-          </select>
-          <div class="hint">Estilo usado quando a geracao de imagem IA falha</div>
-        </div>
+        <div class="hint" style="margin-top:4px;">Clique num preset para carregar. Alteracoes sao salvas no preset ativo.</div>
       </div>
 
       <div class="config-section">
@@ -1444,6 +1435,8 @@
           <div style="display:flex;flex-direction:column;align-items:center;gap:1px;"><button class="small preset-btn" data-preset="darkacademia" onclick="applyThumbPreset('darkacademia')" style="padding:3px 8px;font-size:0.7em;background:#2C1810;color:#D4A574;border:1px solid #D4A574;">Academia</button><input type="checkbox" class="random-preset" data-preset="darkacademia" title="Random"></div>
           <div style="display:flex;flex-direction:column;align-items:center;gap:1px;"><button class="small preset-btn" data-preset="boldoutline" onclick="applyThumbPreset('boldoutline')" style="padding:3px 8px;font-size:0.7em;background:#000;color:#fff;border:2px solid #fff;">BoldOutline</button><input type="checkbox" class="random-preset" data-preset="boldoutline" title="Random"></div>
           <div style="display:flex;flex-direction:column;align-items:center;gap:1px;"><button class="small preset-btn" data-preset="elegantdark" onclick="applyThumbPreset('elegantdark')" style="padding:3px 8px;font-size:0.7em;background:#0a0a14;color:#C9B37E;border:1px solid #C9B37E;">Elegant</button><input type="checkbox" class="random-preset" data-preset="elegantdark" title="Random"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1px;"><button class="small preset-btn" data-preset="tiktok" onclick="applyThumbPreset('tiktok')" style="padding:3px 8px;font-size:0.7em;background:#010101;color:#FE2C55;border:1px solid #25F4EE;">TikTok</button><input type="checkbox" class="random-preset" data-preset="tiktok" title="Random"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1px;"><button class="small preset-btn" data-preset="stories" onclick="applyThumbPreset('stories')" style="padding:3px 8px;font-size:0.7em;background:linear-gradient(135deg,#833ab4,#fd1d1d,#fcb045);color:#fff;border:1px solid #fff;">Stories</button><input type="checkbox" class="random-preset" data-preset="stories" title="Random"></div>
         </div>
         <div class="hint" style="margin-bottom:6px;">Checkboxes = modo random (cada publicacao sorteia um)</div>
         <div class="config-grid" style="grid-template-columns: 1fr 1fr; margin-bottom:8px;">
@@ -1461,6 +1454,95 @@
         <div id="designPreviewBox" style="display:none;margin-top:8px;border:1px solid var(--border);border-radius:8px;overflow:hidden;max-width:640px;">
           <img id="designPreviewImg" style="width:100%;display:block;" alt="Preview">
         </div>
+      </div>
+    </div>
+
+    <!-- Tab: Planilha -->
+    <div class="config-tab-content" id="cfgTab_planilha">
+      <div class="config-section">
+        <h3>Planilha</h3>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+          <select id="sheetSelector" style="padding:6px 12px;font-size:0.85em;">
+            <option value="CONFIG">CONFIG</option>
+            <option value="LIVES">LIVES</option>
+            <option value="PUBLICADOS">PUBLICADOS</option>
+          </select>
+          <button onclick="loadSheet()" class="small">Carregar</button>
+          <button onclick="saveSheet(this)" class="small" style="background:var(--green);">Salvar</button>
+          <button onclick="downloadSheetCSV()" class="small secondary">Download CSV</button>
+          <label class="small secondary" style="display:inline-flex;align-items:center;padding:4px 10px;cursor:pointer;border:1px solid var(--border);border-radius:6px;font-size:0.75rem;">
+            Upload CSV <input type="file" accept=".csv" onchange="uploadSheetCSV(event)" style="display:none;">
+          </label>
+          <button onclick="addSheetRow()" class="small secondary">+ Linha</button>
+          <span id="sheetInfo" style="color:var(--muted);font-size:0.8em;margin-left:8px;"></span>
+        </div>
+        <div id="sheetTableContainer" style="overflow:auto;max-height:65vh;border:1px solid var(--border);border-radius:6px;">
+          <div style="padding:20px;color:var(--muted);text-align:center;">Selecione uma aba e clique Carregar</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="config-tab-content" id="cfgTab_imports">
+      <div class="config-section">
+        <h3>Import de Clips</h3>
+        <p style="color:var(--muted);font-size:0.82em;margin-bottom:14px;">
+          Coloque pastas com MP4s em <code>imports/</code> na raiz do projeto. O sistema detecta e move automaticamente para a fila de publicacao.
+        </p>
+        <div class="config-grid">
+          <div class="config-field">
+            <label>Verificacao automatica (horaria)</label>
+            <select name="import_auto">
+              <option value="false">Desativado</option>
+              <option value="true">Ativado</option>
+            </select>
+            <span class="hint">Varre imports/ a cada hora automaticamente</span>
+          </div>
+          <div class="config-field">
+            <label>Gerar descricao via IA</label>
+            <select name="import_gerar_descricao">
+              <option value="false">Nao gerar</option>
+              <option value="true">Gerar com Claude</option>
+            </select>
+            <span class="hint">Quando o manifest nao tem descricao, usa IA para gerar</span>
+          </div>
+          <div class="config-field">
+            <label>Agendamento de publicacao</label>
+            <select name="import_fila_global" onchange="toggleImportHorarios(this.value)">
+              <option value="true">Fila global (pub_horarios)</option>
+              <option value="false">Horarios proprios</option>
+            </select>
+            <span class="hint">Fila global: segue pub_horarios. Horarios proprios: define abaixo quantas vezes por dia</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="config-section" id="importHorariosSection" style="display:none">
+        <h3>Horarios de Publicacao de Imports</h3>
+        <div class="hour-picker-header">
+          <label>Selecione os horarios (clique para ativar/desativar)</label>
+          <div class="hour-picker-actions">
+            <button onclick="hourPickerSelectAll('import')">Todas</button>
+            <button onclick="hourPickerClearAll('import')">Limpar</button>
+          </div>
+        </div>
+        <div class="hour-picker" id="importHourPicker"></div>
+        <div class="hour-summary" id="importSummary"></div>
+        <div style="margin-top:8px;display:flex;align-items:center;gap:8px;">
+          <label style="font-size:0.85em;color:var(--muted)">Minuto exato:</label>
+          <input type="number" id="cfgImportMinuto" min="0" max="59" value="0" style="width:60px">
+          <span style="font-size:0.8em;color:var(--muted)">Ex: 30 → publica em HH:30</span>
+        </div>
+      </div>
+
+      <div class="config-section">
+        <h3>Acoes</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <button onclick="importScan(this)" style="background:var(--green);">Processar imports/ agora</button>
+          <button onclick="importClean('imports', this)" class="secondary">Limpar imports/ (residuos)</button>
+          <button onclick="importClean('clips', this)" class="secondary">Limpar clips/ (publicados)</button>
+          <span id="importActionMsg" style="color:var(--muted);font-size:0.82em;margin-left:8px;"></span>
+        </div>
+        <div id="importScanResult" style="margin-top:12px;font-size:0.82em;display:none;"></div>
       </div>
     </div>
 
@@ -1489,6 +1571,12 @@
         <option value="aguardando_pub">Aguardando publicacao</option>
         <option value="publicado">Totalmente publicadas</option>
         <option value="erro">Com erro</option>
+      </select>
+      <span class="toolbar-label">Origem:</span>
+      <select id="livesOrigem" onchange="livesPage=1;filterLives()">
+        <option value="">Todas</option>
+        <option value="live">Apenas Lives</option>
+        <option value="import">Apenas Imports</option>
       </select>
       <span class="toolbar-label">Ordem:</span>
       <select id="livesOrder" onchange="livesPage=1;filterLives()">
@@ -1541,6 +1629,12 @@
         <option value="unlisted">Unlisted</option>
         <option value="public">Public</option>
         <option value="private">Private</option>
+      </select>
+      <span class="toolbar-label">Origem:</span>
+      <select id="pubOrigem" onchange="clipsPage=1;filterPubs()">
+        <option value="">Todas</option>
+        <option value="live">Apenas Lives</option>
+        <option value="import">Apenas Imports</option>
       </select>
       <span class="toolbar-label">Ordem:</span>
       <select id="pubOrder" onchange="clipsPage=1;filterPubs()">
@@ -1617,7 +1711,9 @@ let clipsPage = 1;
 
 async function fetchJson(url, opts) {
   const resp = await fetch(API + url, opts);
-  return resp.json();
+  const data = await resp.json();
+  if (!resp.ok && data.error) throw new Error(data.error);
+  return data;
 }
 
 function showToast(msg, type = 'success') {
@@ -1668,6 +1764,208 @@ function saveActiveTab(btn) {
   else if (_activeConfigTab === 'apis') saveApis(btn);
   else if (_activeConfigTab === 'prompts') savePrompts(btn);
   else if (_activeConfigTab === 'design') saveDesign(btn);
+  else if (_activeConfigTab === 'planilha') saveSheet(btn);
+  else if (_activeConfigTab === 'imports') saveImports(btn);
+}
+
+function toggleImportHorarios(val) {
+  document.getElementById('importHorariosSection').style.display = val === 'false' ? 'block' : 'none';
+  if (val === 'false') buildHourPicker('import');
+}
+
+async function saveImports(btn) {
+  const getSelect = name => { const el = document.querySelector(`[name="${name}"]`); return el ? el.value : ''; };
+  const data = {
+    import_auto:             getSelect('import_auto'),
+    import_gerar_descricao:  getSelect('import_gerar_descricao'),
+    import_fila_global:      getSelect('import_fila_global'),
+    import_pub_horarios:     hoursToString('import'),
+    import_minuto:           document.getElementById('cfgImportMinuto').value,
+  };
+  if (btn) { btn.textContent = 'Salvando...'; btn.disabled = true; }
+  try {
+    await fetchJson('/api/config', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
+    if (btn) { btn.textContent = 'Salvo!'; setTimeout(() => { btn.textContent = 'Salvar'; btn.disabled = false; }, 1500); }
+  } catch (e) {
+    if (btn) { btn.textContent = 'Erro'; btn.disabled = false; }
+  }
+}
+
+async function importScan(btn) {
+  const msg = document.getElementById('importActionMsg');
+  const result = document.getElementById('importScanResult');
+  if (btn) { btn.textContent = 'Processando...'; btn.disabled = true; }
+  msg.textContent = '';
+  result.style.display = 'none';
+  try {
+    const resp = await fetchJson('/api/import/scan', { method: 'POST', body: '{}' });
+    const n = resp.processados || 0;
+    msg.textContent = n > 0 ? `${n} lote(s) importado(s)` : 'Nenhuma pasta nova em imports/';
+    msg.style.color = n > 0 ? 'var(--green)' : 'var(--muted)';
+    if (resp.detalhes && resp.detalhes.length) {
+      result.style.display = 'block';
+      result.innerHTML = resp.detalhes.map(d =>
+        `<div style="padding:3px 0;color:${d.ok ? 'var(--green)' : 'var(--red)'}">
+          ${d.ok ? '✓' : '✗'} <b>${d.pasta}</b> ${d.ok ? `→ ${d.clips} clips` : `(${d.motivo})`}
+        </div>`
+      ).join('');
+    }
+  } catch (e) {
+    msg.textContent = 'Erro: ' + e;
+    msg.style.color = 'var(--red)';
+  } finally {
+    if (btn) { btn.textContent = 'Processar imports/ agora'; btn.disabled = false; }
+  }
+}
+
+async function importClean(action, btn) {
+  const msg = document.getElementById('importActionMsg');
+  if (btn) { btn.textContent = 'Limpando...'; btn.disabled = true; }
+  msg.textContent = '';
+  try {
+    const resp = await fetchJson('/api/import/clean', { method: 'POST', body: JSON.stringify({ action }) });
+    const n = resp.removidos ?? resp.lives_limpas ?? 0;
+    msg.textContent = `Limpeza OK: ${n} item(s) removido(s)`;
+    msg.style.color = 'var(--green)';
+  } catch (e) {
+    msg.textContent = 'Erro: ' + e;
+    msg.style.color = 'var(--red)';
+  } finally {
+    if (btn) { btn.textContent = btn.textContent.replace('Limpando...', btn.getAttribute('data-label') || btn.textContent); btn.disabled = false; }
+    setTimeout(() => { msg.textContent = ''; }, 3000);
+  }
+}
+
+// --- Planilha (raw sheet access) ---
+let _sheetData = { name: '', values: [] };
+
+async function loadSheet() {
+  const name = document.getElementById('sheetSelector').value;
+  const info = document.getElementById('sheetInfo');
+  const container = document.getElementById('sheetTableContainer');
+  info.textContent = 'Carregando...';
+  container.innerHTML = '';
+  try {
+    const resp = await fetchJson('/api/sheet?name=' + name);
+    _sheetData = { name: resp.sheet, values: resp.values || [] };
+    renderSheetTable();
+    info.textContent = _sheetData.values.length + ' linhas';
+  } catch (e) {
+    info.textContent = 'Erro: ' + e;
+    container.innerHTML = '<div style="padding:20px;color:var(--red)">Erro ao carregar</div>';
+  }
+}
+
+function renderSheetTable() {
+  const container = document.getElementById('sheetTableContainer');
+  if (!_sheetData.values.length) {
+    container.innerHTML = '<div style="padding:20px;color:var(--muted)">Planilha vazia</div>';
+    return;
+  }
+  const maxCols = Math.max(..._sheetData.values.map(r => r.length));
+  let html = '<table><thead><tr><th class="row-num">#</th>';
+  // Column letters as header
+  for (let c = 0; c < maxCols; c++) html += '<th>' + String.fromCharCode(65 + c) + '</th>';
+  html += '<th></th></tr></thead><tbody>';
+  _sheetData.values.forEach((row, i) => {
+    html += '<tr><td class="row-num">' + (i + 1) + '</td>';
+    for (let c = 0; c < maxCols; c++) {
+      const val = (row[c] || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      html += '<td contenteditable="true" data-r="' + i + '" data-c="' + c + '">' + val + '</td>';
+    }
+    html += '<td class="btn-del-row" onclick="deleteSheetRow(' + i + ')" title="Remover linha">x</td></tr>';
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function readSheetFromDOM() {
+  const rows = [];
+  const trs = document.querySelectorAll('#sheetTableContainer tbody tr');
+  trs.forEach(tr => {
+    const cells = tr.querySelectorAll('td[contenteditable]');
+    const row = [];
+    cells.forEach(td => row.push(td.textContent));
+    rows.push(row);
+  });
+  return rows;
+}
+
+async function saveSheet(btn) {
+  const values = readSheetFromDOM();
+  if (!values.length) { showToast('Nada para salvar', 'error'); return; }
+  const orig = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Salvando...'; }
+  try {
+    await fetchJson('/api/sheet/update', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ sheet: _sheetData.name, values })
+    });
+    _sheetData.values = values;
+    showToast('Planilha salva (' + values.length + ' linhas)');
+    if (btn) { btn.innerHTML = 'Salvo!'; btn.classList.add('saved'); setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('saved'); btn.disabled = false; }, 1500); }
+  } catch (e) {
+    showToast('Erro ao salvar: ' + e, 'error');
+    if (btn) { btn.innerHTML = orig; btn.disabled = false; }
+  }
+}
+
+function downloadSheetCSV() {
+  const values = readSheetFromDOM();
+  if (!values.length) { _sheetData.values.length ? null : showToast('Carregue uma aba primeiro', 'error'); values.push(..._sheetData.values); }
+  if (!values.length) return;
+  const csv = values.map(row => row.map(c => {
+    const s = String(c);
+    return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = (_sheetData.name || 'sheet') + '.csv';
+  a.click(); URL.revokeObjectURL(url);
+}
+
+async function uploadSheetCSV(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const name = document.getElementById('sheetSelector').value;
+  if (!confirm('Substituir TODA a aba ' + name + ' com o CSV?\nIsso apaga os dados atuais.')) {
+    event.target.value = ''; return;
+  }
+  const text = await file.text();
+  const info = document.getElementById('sheetInfo');
+  info.textContent = 'Enviando...';
+  try {
+    const resp = await fetchJson('/api/sheet/upload', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ sheet: name, csv: text })
+    });
+    showToast('Upload OK: ' + resp.rows + ' linhas');
+    _sheetData.name = name;
+    await loadSheet();
+  } catch (e) {
+    showToast('Erro no upload: ' + e, 'error');
+    info.textContent = 'Erro';
+  }
+  event.target.value = '';
+}
+
+function addSheetRow() {
+  if (!_sheetData.values.length) return;
+  const maxCols = Math.max(..._sheetData.values.map(r => r.length));
+  _sheetData.values.push(new Array(maxCols).fill(''));
+  renderSheetTable();
+  document.getElementById('sheetInfo').textContent = _sheetData.values.length + ' linhas';
+  // Scroll to bottom
+  const container = document.getElementById('sheetTableContainer');
+  container.scrollTop = container.scrollHeight;
+}
+
+function deleteSheetRow(idx) {
+  if (!confirm('Remover linha ' + (idx + 1) + '?')) return;
+  _sheetData.values.splice(idx, 1);
+  renderSheetTable();
+  document.getElementById('sheetInfo').textContent = _sheetData.values.length + ' linhas';
 }
 
 // --- Dynamic API fields ---
@@ -1761,15 +2059,37 @@ function _getDesignData() {
     design_brand: g('cfgDesignBrand'), design_brand_font: g('cfgDesignBrandFont'),
     design_brand_size: g('cfgDesignBrandSize'), design_brand_color: g('cfgDesignBrandColor'),
     design_brand_position: g('cfgDesignBrandPosition'),
-    design_position: g('cfgDesignPosition'), design_fallback_preset: g('cfgDesignFallbackPreset'),
+    design_position: g('cfgDesignPosition'),
     design_random_presets: Array.from(document.querySelectorAll('.random-preset:checked')).map(c => c.dataset.preset).join(',')
   };
 }
 
 function saveDesign(btn) {
+  // Salva campos de design + salva customizacao no preset ativo
+  const data = _getDesignData();
+  data.design_active_preset = currentPreset;
+
+  // Construir objeto do preset a partir dos campos atuais
+  const g = id => { const el = document.getElementById(id); return el ? el.value : ''; };
+  const presetData = {
+    font: g('cfgDesignFont'), fontSize: Number(g('cfgDesignFontSize')), lastLineScale: Number(g('cfgDesignLastLineScale')),
+    lineHeight: Number(g('cfgDesignLineHeight')), tracking: g('cfgDesignTracking'), case: g('cfgDesignCase'),
+    textColor: g('cfgDesignTextColor'), highlightColor: g('cfgDesignHighlightColor'), highlightEnabled: g('cfgDesignHighlightEnabled'),
+    accentColor: g('cfgDesignAccentColor'), accentWidth: Number(g('cfgDesignAccentWidth')), accentHeight: Number(g('cfgDesignAccentHeight')),
+    accentGap: Number(g('cfgDesignAccentGap')), accentEnabled: g('cfgDesignAccentEnabled'),
+    strokeEnabled: g('cfgDesignStrokeEnabled'), strokeColor: g('cfgDesignStrokeColor'), strokeSize: Number(g('cfgDesignStrokeSize')),
+    shadowType: g('cfgDesignShadowType'), shadowColor: g('cfgDesignShadowColor'), shadowSize: Number(g('cfgDesignShadowSize')),
+    shadowOpacity: Number(g('cfgDesignShadowOpacity')), gradient: g('cfgDesignGradient'), gradientOpacity: Number(g('cfgDesignGradientOpacity')),
+    gradientCoverage: Number(g('cfgDesignGradientCoverage')), brand: g('cfgDesignBrand'), brandFont: g('cfgDesignBrandFont'),
+    brandSize: Number(g('cfgDesignBrandSize')), brandColor: g('cfgDesignBrandColor'), brandPosition: g('cfgDesignBrandPosition'),
+    position: g('cfgDesignPosition')
+  };
+  savedPresets[currentPreset] = presetData;
+  data['preset_' + currentPreset] = JSON.stringify(presetData);
+
   _saveWithFeedback(btn, () => fetchJson('/api/config', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(_getDesignData())
+    body: JSON.stringify(data)
   }));
 }
 
@@ -1795,197 +2115,44 @@ async function previewDesign(btn, bgType) {
   btn.disabled = false;
 }
 
+// Presets default (hardcoded)
+const defaultPresets = {
+  premium: { font: 'montserrat-extrabold', fontSize: 82, lastLineScale: 15, lineHeight: 90, tracking: 'tight', case: 'upper', textColor: '#F5F3EE', highlightColor: '#D9B65B', highlightEnabled: 'true', accentColor: '#D9B65B', shadowType: 'blur', shadowColor: '#000000', shadowSize: 8, shadowOpacity: 180, gradient: 'top-left', gradientOpacity: 160, gradientCoverage: 40, brand: 'INEMA TDS', brandFont: 'montserrat-extrabold', brandSize: 26, brandColor: '#D9B65B', brandPosition: 'bottom-left', position: 'top-left' },
+  youtube: { font: 'anton', fontSize: 90, lastLineScale: 0, lineHeight: 96, tracking: 'normal', case: 'upper', textColor: '#FFFFFF', highlightColor: '#FFFF00', highlightEnabled: 'true', accentColor: '#FF0000', shadowType: 'outline', shadowColor: '#000000', shadowSize: 4, shadowOpacity: 255, gradient: 'none', gradientOpacity: 0, gradientCoverage: 0, brand: 'INEMA TDS', brandFont: 'anton', brandSize: 28, brandColor: '#FF0000', brandPosition: 'bottom-left', position: 'center-left' },
+  clean: { font: 'montserrat-extrabold', fontSize: 76, lastLineScale: 0, lineHeight: 88, tracking: 'tight', case: 'upper', textColor: '#FFFFFF', highlightColor: '#FFFFFF', highlightEnabled: 'false', accentColor: '#6366F1', shadowType: 'blur', shadowColor: '#000000', shadowSize: 6, shadowOpacity: 150, gradient: 'left', gradientOpacity: 120, gradientCoverage: 35, brand: 'INEMA TDS', brandFont: 'montserrat-extrabold', brandSize: 24, brandColor: '#6366F1', brandPosition: 'bottom-left', position: 'top-left' },
+  neon: { font: 'bebas-neue', fontSize: 88, lastLineScale: 10, lineHeight: 92, tracking: 'normal', case: 'upper', textColor: '#00F5FF', highlightColor: '#FF00FF', highlightEnabled: 'true', accentColor: '#00F5FF', shadowType: 'blur', shadowColor: '#00F5FF', shadowSize: 10, shadowOpacity: 100, gradient: 'top-left', gradientOpacity: 180, gradientCoverage: 45, brand: 'INEMA TDS', brandFont: 'bebas-neue', brandSize: 28, brandColor: '#00F5FF', brandPosition: 'bottom-left', position: 'top-left' },
+  fallback: { font: 'montserrat-extrabold', fontSize: 72, lastLineScale: 0, lineHeight: 84, tracking: 'tight', case: 'upper', textColor: '#FFFFFF', highlightColor: '#FFFFFF', highlightEnabled: 'false', accentColor: '#6366F1', shadowType: 'outline', shadowColor: '#000000', shadowSize: 3, shadowOpacity: 255, gradient: 'none', gradientOpacity: 0, gradientCoverage: 0, brand: 'INEMA TDS', brandFont: 'dejavu', brandSize: 24, brandColor: '#6366F1', brandPosition: 'bottom-left', position: 'top-left' },
+  mrbeast: { font: 'anton', fontSize: 100, lastLineScale: 0, lineHeight: 105, tracking: 'normal', case: 'upper', textColor: '#FFFFFF', highlightColor: '#FFD700', highlightEnabled: 'true', accentColor: '#FFD700', shadowType: 'outline', shadowColor: '#000000', shadowSize: 5, shadowOpacity: 255, gradient: 'none', gradientOpacity: 0, gradientCoverage: 0, brand: 'INEMA TDS', brandFont: 'anton', brandSize: 30, brandColor: '#FFD700', brandPosition: 'bottom-left', position: 'center-left' },
+  techreview: { font: 'montserrat-black', fontSize: 78, lastLineScale: 10, lineHeight: 88, tracking: 'tight', case: 'upper', textColor: '#E3F2FD', highlightColor: '#4FC3F7', highlightEnabled: 'true', accentColor: '#4FC3F7', shadowType: 'blur', shadowColor: '#0D47A1', shadowSize: 8, shadowOpacity: 160, gradient: 'top-left', gradientOpacity: 150, gradientCoverage: 45, brand: 'INEMA TDS', brandFont: 'montserrat-extrabold', brandSize: 24, brandColor: '#4FC3F7', brandPosition: 'bottom-left', position: 'top-left' },
+  tutorial: { font: 'montserrat-extrabold', fontSize: 80, lastLineScale: 0, lineHeight: 90, tracking: 'tight', case: 'upper', textColor: '#FFFFFF', highlightColor: '#4CAF50', highlightEnabled: 'true', accentColor: '#4CAF50', shadowType: 'outline', shadowColor: '#1B5E20', shadowSize: 3, shadowOpacity: 220, gradient: 'top', gradientOpacity: 140, gradientCoverage: 35, brand: 'INEMA TDS', brandFont: 'montserrat-extrabold', brandSize: 26, brandColor: '#4CAF50', brandPosition: 'bottom-left', position: 'top-left' },
+  breaking: { font: 'anton', fontSize: 94, lastLineScale: 0, lineHeight: 100, tracking: 'normal', case: 'upper', textColor: '#FFEB3B', highlightColor: '#FF5722', highlightEnabled: 'true', accentColor: '#FF5722', shadowType: 'outline', shadowColor: '#000000', shadowSize: 4, shadowOpacity: 255, gradient: 'full-bottom', gradientOpacity: 200, gradientCoverage: 50, brand: 'INEMA TDS', brandFont: 'anton', brandSize: 28, brandColor: '#FFEB3B', brandPosition: 'bottom-left', position: 'bottom-left' },
+  minimal: { font: 'montserrat-extrabold', fontSize: 68, lastLineScale: 0, lineHeight: 80, tracking: 'very-tight', case: 'upper', textColor: '#1A1A1A', highlightColor: '#1A1A1A', highlightEnabled: 'false', accentColor: '#E0E0E0', shadowType: 'none', shadowColor: '#000000', shadowSize: 0, shadowOpacity: 0, gradient: 'left', gradientOpacity: 200, gradientCoverage: 50, brand: 'INEMA TDS', brandFont: 'montserrat-extrabold', brandSize: 22, brandColor: '#9E9E9E', brandPosition: 'bottom-left', position: 'center-left' },
+  cinematic: { font: 'montserrat-black', fontSize: 80, lastLineScale: 0, lineHeight: 88, tracking: 'tight', case: 'upper', textColor: '#F5A623', highlightColor: '#00C2C7', highlightEnabled: 'true', accentColor: '#F5A623', shadowType: 'blur', shadowColor: '#000000', shadowSize: 10, shadowOpacity: 200, gradient: 'top-left', gradientOpacity: 180, gradientCoverage: 50, brand: 'INEMA TDS', brandFont: 'montserrat-extrabold', brandSize: 24, brandColor: '#F5A623', brandPosition: 'bottom-left', position: 'bottom-left' },
+  gradient: { font: 'montserrat-black', fontSize: 84, lastLineScale: 0, lineHeight: 92, tracking: 'tight', case: 'upper', textColor: '#BF00FF', highlightColor: '#FF007F', highlightEnabled: 'true', accentColor: '#8B00FF', shadowType: 'blur', shadowColor: '#4A0080', shadowSize: 8, shadowOpacity: 150, gradient: 'top-left', gradientOpacity: 160, gradientCoverage: 40, brand: 'INEMA TDS', brandFont: 'montserrat-extrabold', brandSize: 24, brandColor: '#BF00FF', brandPosition: 'bottom-left', position: 'top-left' },
+  splitscreen: { font: 'anton', fontSize: 88, lastLineScale: 0, lineHeight: 94, tracking: 'normal', case: 'upper', textColor: '#FFFFFF', highlightColor: '#FFE135', highlightEnabled: 'false', accentColor: '#FFFFFF', shadowType: 'outline', shadowColor: '#000000', shadowSize: 4, shadowOpacity: 255, gradient: 'none', gradientOpacity: 0, gradientCoverage: 0, brand: 'INEMA TDS', brandFont: 'anton', brandSize: 26, brandColor: '#FFFFFF', brandPosition: 'bottom-left', position: 'center' },
+  colorpop: { font: 'montserrat-extrabold', fontSize: 78, lastLineScale: 0, lineHeight: 88, tracking: 'tight', case: 'upper', textColor: '#FF1C1C', highlightColor: '#FFFFFF', highlightEnabled: 'true', accentColor: '#FF1C1C', shadowType: 'outline', shadowColor: '#000000', shadowSize: 3, shadowOpacity: 200, gradient: 'left', gradientOpacity: 140, gradientCoverage: 40, brand: 'INEMA TDS', brandFont: 'montserrat-extrabold', brandSize: 24, brandColor: '#FF1C1C', brandPosition: 'bottom-left', position: 'top-left' },
+  retro: { font: 'dejavu', fontSize: 74, lastLineScale: 0, lineHeight: 86, tracking: 'normal', case: 'upper', textColor: '#F2E8D5', highlightColor: '#C45E26', highlightEnabled: 'true', accentColor: '#C45E26', shadowType: 'outline', shadowColor: '#3D2B1F', shadowSize: 3, shadowOpacity: 200, gradient: 'top-left', gradientOpacity: 120, gradientCoverage: 35, brand: 'INEMA TDS', brandFont: 'dejavu', brandSize: 24, brandColor: '#C45E26', brandPosition: 'bottom-left', position: 'top-left' },
+  '3dextrude': { font: 'anton', fontSize: 96, lastLineScale: 0, lineHeight: 102, tracking: 'normal', case: 'upper', textColor: '#FFD700', highlightColor: '#FFD700', highlightEnabled: 'false', accentColor: '#FFD700', shadowType: 'outline', shadowColor: '#4A2C00', shadowSize: 5, shadowOpacity: 255, gradient: 'top-left', gradientOpacity: 180, gradientCoverage: 45, brand: 'INEMA TDS', brandFont: 'anton', brandSize: 28, brandColor: '#FFD700', brandPosition: 'bottom-left', position: 'center-left' },
+  glassmorphism: { font: 'montserrat-extrabold', fontSize: 74, lastLineScale: 0, lineHeight: 86, tracking: 'tight', case: 'upper', textColor: '#FFFFFF', highlightColor: '#E0E0FF', highlightEnabled: 'false', accentColor: '#A855F7', shadowType: 'blur', shadowColor: '#3B82F6', shadowSize: 6, shadowOpacity: 80, gradient: 'top-left', gradientOpacity: 100, gradientCoverage: 50, brand: 'INEMA TDS', brandFont: 'montserrat-extrabold', brandSize: 22, brandColor: '#A855F7', brandPosition: 'bottom-left', position: 'center-left' },
+  darkacademia: { font: 'dejavu', fontSize: 72, lastLineScale: 10, lineHeight: 84, tracking: 'normal', case: 'upper', textColor: '#D4A574', highlightColor: '#F2E8D5', highlightEnabled: 'true', accentColor: '#8B6F47', shadowType: 'blur', shadowColor: '#1A0E08', shadowSize: 8, shadowOpacity: 180, gradient: 'top-left', gradientOpacity: 170, gradientCoverage: 50, brand: 'INEMA TDS', brandFont: 'dejavu', brandSize: 22, brandColor: '#8B6F47', brandPosition: 'bottom-left', position: 'top-left' },
+  boldoutline: { font: 'anton', fontSize: 92, lastLineScale: 0, lineHeight: 98, tracking: 'normal', case: 'upper', textColor: '#FFFFFF', highlightColor: '#FFFFFF', highlightEnabled: 'false', accentColor: '#FFFFFF', shadowType: 'outline', shadowColor: '#000000', shadowSize: 6, shadowOpacity: 255, gradient: 'none', gradientOpacity: 0, gradientCoverage: 0, brand: 'INEMA TDS', brandFont: 'anton', brandSize: 28, brandColor: '#FFFFFF', brandPosition: 'bottom-left', position: 'center-left' },
+  elegantdark: { font: 'montserrat-extrabold', fontSize: 76, lastLineScale: 15, lineHeight: 86, tracking: 'tight', case: 'upper', textColor: '#C9B37E', highlightColor: '#FFFFFF', highlightEnabled: 'true', accentColor: '#C9B37E', shadowType: 'blur', shadowColor: '#000000', shadowSize: 8, shadowOpacity: 190, gradient: 'top-left', gradientOpacity: 170, gradientCoverage: 45, brand: 'INEMA TDS', brandFont: 'montserrat-extrabold', brandSize: 24, brandColor: '#C9B37E', brandPosition: 'bottom-left', position: 'top-left' },
+  tiktok: { font: 'montserrat-extrabold', fontSize: 64, lastLineScale: 0, lineHeight: 76, tracking: 'tight', case: 'upper', textColor: '#FFFFFF', highlightColor: '#FE2C55', highlightEnabled: 'true', accentColor: '#25F4EE', shadowType: 'outline', shadowColor: '#000000', shadowSize: 4, shadowOpacity: 220, gradient: 'top', gradientOpacity: 180, gradientCoverage: 50, brand: 'INEMA TDS', brandFont: 'montserrat-extrabold', brandSize: 22, brandColor: '#FE2C55', brandPosition: 'bottom-left', position: 'center-left', thumbWidth: 1280, thumbHeight: 720 },
+  stories: { font: 'montserrat-extrabold', fontSize: 56, lastLineScale: 0, lineHeight: 68, tracking: 'tight', case: 'upper', textColor: '#FFFFFF', highlightColor: '#FF6B6B', highlightEnabled: 'true', accentColor: '#FF6B6B', shadowType: 'blur', shadowColor: '#000000', shadowSize: 8, shadowOpacity: 200, gradient: 'top', gradientOpacity: 200, gradientCoverage: 60, brand: 'INEMA TDS', brandFont: 'montserrat-extrabold', brandSize: 20, brandColor: '#FF6B6B', brandPosition: 'bottom-left', position: 'center-left', thumbWidth: 1080, thumbHeight: 1920 }
+};
+
+function getPreset(name) {
+  // Retorna preset salvo (customizado) ou default hardcoded
+  if (savedPresets[name]) return {...defaultPresets[name], ...savedPresets[name]};
+  return defaultPresets[name];
+}
+
 function applyThumbPreset(name) {
-  const presets = {
-    premium: {
-      font: 'montserrat-extrabold', fontSize: 82, lastLineScale: 15, lineHeight: 90,
-      tracking: 'tight', case: 'upper', textColor: '#F5F3EE', highlightColor: '#D9B65B',
-      highlightEnabled: 'true', accentColor: '#D9B65B',
-      shadowType: 'blur', shadowColor: '#000000', shadowSize: 8, shadowOpacity: 180,
-      gradient: 'top-left', gradientOpacity: 160, gradientCoverage: 40,
-      brand: 'INEMA TDS', brandFont: 'montserrat-extrabold', brandSize: 26, brandColor: '#D9B65B', brandPosition: 'bottom-left',
-      position: 'top-left'
-    },
-    youtube: {
-      font: 'anton', fontSize: 90, lastLineScale: 0, lineHeight: 96,
-      tracking: 'normal', case: 'upper', textColor: '#FFFFFF', highlightColor: '#FFFF00',
-      highlightEnabled: 'true', accentColor: '#FF0000',
-      shadowType: 'outline', shadowColor: '#000000', shadowSize: 4, shadowOpacity: 255,
-      gradient: 'none', gradientOpacity: 0, gradientCoverage: 0,
-      brand: 'INEMA TDS', brandFont: 'anton', brandSize: 28, brandColor: '#FF0000', brandPosition: 'bottom-left',
-      position: 'center-left'
-    },
-    clean: {
-      font: 'montserrat-extrabold', fontSize: 76, lastLineScale: 0, lineHeight: 88,
-      tracking: 'tight', case: 'upper', textColor: '#FFFFFF', highlightColor: '#FFFFFF',
-      highlightEnabled: 'false', accentColor: '#6366F1',
-      shadowType: 'blur', shadowColor: '#000000', shadowSize: 6, shadowOpacity: 150,
-      gradient: 'left', gradientOpacity: 120, gradientCoverage: 35,
-      brand: 'INEMA TDS', brandFont: 'montserrat-extrabold', brandSize: 24, brandColor: '#6366F1', brandPosition: 'bottom-left',
-      position: 'top-left'
-    },
-    neon: {
-      font: 'bebas-neue', fontSize: 88, lastLineScale: 10, lineHeight: 92,
-      tracking: 'normal', case: 'upper', textColor: '#00F5FF', highlightColor: '#FF00FF',
-      highlightEnabled: 'true', accentColor: '#00F5FF',
-      shadowType: 'blur', shadowColor: '#00F5FF', shadowSize: 10, shadowOpacity: 100,
-      gradient: 'top-left', gradientOpacity: 180, gradientCoverage: 45,
-      brand: 'INEMA TDS', brandFont: 'bebas-neue', brandSize: 28, brandColor: '#00F5FF', brandPosition: 'bottom-left',
-      position: 'top-left'
-    },
-    fallback: {
-      font: 'montserrat-extrabold', fontSize: 72, lastLineScale: 0, lineHeight: 84,
-      tracking: 'tight', case: 'upper', textColor: '#FFFFFF', highlightColor: '#FFFFFF',
-      highlightEnabled: 'false', accentColor: '#6366F1',
-      shadowType: 'outline', shadowColor: '#000000', shadowSize: 3, shadowOpacity: 255,
-      gradient: 'none', gradientOpacity: 0, gradientCoverage: 0,
-      brand: 'INEMA TDS', brandFont: 'dejavu', brandSize: 24, brandColor: '#6366F1', brandPosition: 'bottom-left',
-      position: 'top-left'
-    },
-    mrbeast: {
-      font: 'anton', fontSize: 100, lastLineScale: 0, lineHeight: 105,
-      tracking: 'normal', case: 'upper', textColor: '#FFFFFF', highlightColor: '#FFD700',
-      highlightEnabled: 'true', accentColor: '#FFD700',
-      shadowType: 'outline', shadowColor: '#000000', shadowSize: 5, shadowOpacity: 255,
-      gradient: 'none', gradientOpacity: 0, gradientCoverage: 0,
-      brand: 'INEMA TDS', brandFont: 'anton', brandSize: 30, brandColor: '#FFD700', brandPosition: 'bottom-left',
-      position: 'center-left'
-    },
-    techreview: {
-      font: 'montserrat-black', fontSize: 78, lastLineScale: 10, lineHeight: 88,
-      tracking: 'tight', case: 'upper', textColor: '#E3F2FD', highlightColor: '#4FC3F7',
-      highlightEnabled: 'true', accentColor: '#4FC3F7',
-      shadowType: 'blur', shadowColor: '#0D47A1', shadowSize: 8, shadowOpacity: 160,
-      gradient: 'top-left', gradientOpacity: 150, gradientCoverage: 45,
-      brand: 'INEMA TDS', brandFont: 'montserrat-extrabold', brandSize: 24, brandColor: '#4FC3F7', brandPosition: 'bottom-left',
-      position: 'top-left'
-    },
-    tutorial: {
-      font: 'montserrat-extrabold', fontSize: 80, lastLineScale: 0, lineHeight: 90,
-      tracking: 'tight', case: 'upper', textColor: '#FFFFFF', highlightColor: '#4CAF50',
-      highlightEnabled: 'true', accentColor: '#4CAF50',
-      shadowType: 'outline', shadowColor: '#1B5E20', shadowSize: 3, shadowOpacity: 220,
-      gradient: 'top', gradientOpacity: 140, gradientCoverage: 35,
-      brand: 'INEMA TDS', brandFont: 'montserrat-extrabold', brandSize: 26, brandColor: '#4CAF50', brandPosition: 'bottom-left',
-      position: 'top-left'
-    },
-    breaking: {
-      font: 'anton', fontSize: 94, lastLineScale: 0, lineHeight: 100,
-      tracking: 'normal', case: 'upper', textColor: '#FFEB3B', highlightColor: '#FF5722',
-      highlightEnabled: 'true', accentColor: '#FF5722',
-      shadowType: 'outline', shadowColor: '#000000', shadowSize: 4, shadowOpacity: 255,
-      gradient: 'full-bottom', gradientOpacity: 200, gradientCoverage: 50,
-      brand: 'INEMA TDS', brandFont: 'anton', brandSize: 28, brandColor: '#FFEB3B', brandPosition: 'bottom-left',
-      position: 'bottom-left'
-    },
-    minimal: {
-      font: 'montserrat-extrabold', fontSize: 68, lastLineScale: 0, lineHeight: 80,
-      tracking: 'very-tight', case: 'upper', textColor: '#1A1A1A', highlightColor: '#1A1A1A',
-      highlightEnabled: 'false', accentColor: '#E0E0E0',
-      shadowType: 'none', shadowColor: '#000000', shadowSize: 0, shadowOpacity: 0,
-      gradient: 'left', gradientOpacity: 200, gradientCoverage: 50,
-      brand: 'INEMA TDS', brandFont: 'montserrat-extrabold', brandSize: 22, brandColor: '#9E9E9E', brandPosition: 'bottom-left',
-      position: 'center-left'
-    },
-    cinematic: {
-      font: 'montserrat-black', fontSize: 80, lastLineScale: 0, lineHeight: 88,
-      tracking: 'tight', case: 'upper', textColor: '#F5A623', highlightColor: '#00C2C7',
-      highlightEnabled: 'true', accentColor: '#F5A623',
-      shadowType: 'blur', shadowColor: '#000000', shadowSize: 10, shadowOpacity: 200,
-      gradient: 'top-left', gradientOpacity: 180, gradientCoverage: 50,
-      brand: 'INEMA TDS', brandFont: 'montserrat-extrabold', brandSize: 24, brandColor: '#F5A623', brandPosition: 'bottom-left',
-      position: 'bottom-left'
-    },
-    gradient: {
-      font: 'montserrat-black', fontSize: 84, lastLineScale: 0, lineHeight: 92,
-      tracking: 'tight', case: 'upper', textColor: '#BF00FF', highlightColor: '#FF007F',
-      highlightEnabled: 'true', accentColor: '#8B00FF',
-      shadowType: 'blur', shadowColor: '#4A0080', shadowSize: 8, shadowOpacity: 150,
-      gradient: 'top-left', gradientOpacity: 160, gradientCoverage: 40,
-      brand: 'INEMA TDS', brandFont: 'montserrat-extrabold', brandSize: 24, brandColor: '#BF00FF', brandPosition: 'bottom-left',
-      position: 'top-left'
-    },
-    splitscreen: {
-      font: 'anton', fontSize: 88, lastLineScale: 0, lineHeight: 94,
-      tracking: 'normal', case: 'upper', textColor: '#FFFFFF', highlightColor: '#FFE135',
-      highlightEnabled: 'false', accentColor: '#FFFFFF',
-      shadowType: 'outline', shadowColor: '#000000', shadowSize: 4, shadowOpacity: 255,
-      gradient: 'none', gradientOpacity: 0, gradientCoverage: 0,
-      brand: 'INEMA TDS', brandFont: 'anton', brandSize: 26, brandColor: '#FFFFFF', brandPosition: 'bottom-left',
-      position: 'center'
-    },
-    colorpop: {
-      font: 'montserrat-extrabold', fontSize: 78, lastLineScale: 0, lineHeight: 88,
-      tracking: 'tight', case: 'upper', textColor: '#FF1C1C', highlightColor: '#FFFFFF',
-      highlightEnabled: 'true', accentColor: '#FF1C1C',
-      shadowType: 'outline', shadowColor: '#000000', shadowSize: 3, shadowOpacity: 200,
-      gradient: 'left', gradientOpacity: 140, gradientCoverage: 40,
-      brand: 'INEMA TDS', brandFont: 'montserrat-extrabold', brandSize: 24, brandColor: '#FF1C1C', brandPosition: 'bottom-left',
-      position: 'top-left'
-    },
-    retro: {
-      font: 'dejavu', fontSize: 74, lastLineScale: 0, lineHeight: 86,
-      tracking: 'normal', case: 'upper', textColor: '#F2E8D5', highlightColor: '#C45E26',
-      highlightEnabled: 'true', accentColor: '#C45E26',
-      shadowType: 'outline', shadowColor: '#3D2B1F', shadowSize: 3, shadowOpacity: 200,
-      gradient: 'top-left', gradientOpacity: 120, gradientCoverage: 35,
-      brand: 'INEMA TDS', brandFont: 'dejavu', brandSize: 24, brandColor: '#C45E26', brandPosition: 'bottom-left',
-      position: 'top-left'
-    },
-    '3dextrude': {
-      font: 'anton', fontSize: 96, lastLineScale: 0, lineHeight: 102,
-      tracking: 'normal', case: 'upper', textColor: '#FFD700', highlightColor: '#FFD700',
-      highlightEnabled: 'false', accentColor: '#FFD700',
-      shadowType: 'outline', shadowColor: '#4A2C00', shadowSize: 5, shadowOpacity: 255,
-      gradient: 'top-left', gradientOpacity: 180, gradientCoverage: 45,
-      brand: 'INEMA TDS', brandFont: 'anton', brandSize: 28, brandColor: '#FFD700', brandPosition: 'bottom-left',
-      position: 'center-left'
-    },
-    glassmorphism: {
-      font: 'montserrat-extrabold', fontSize: 74, lastLineScale: 0, lineHeight: 86,
-      tracking: 'tight', case: 'upper', textColor: '#FFFFFF', highlightColor: '#E0E0FF',
-      highlightEnabled: 'false', accentColor: '#A855F7',
-      shadowType: 'blur', shadowColor: '#3B82F6', shadowSize: 6, shadowOpacity: 80,
-      gradient: 'top-left', gradientOpacity: 100, gradientCoverage: 50,
-      brand: 'INEMA TDS', brandFont: 'montserrat-extrabold', brandSize: 22, brandColor: '#A855F7', brandPosition: 'bottom-left',
-      position: 'center-left'
-    },
-    darkacademia: {
-      font: 'dejavu', fontSize: 72, lastLineScale: 10, lineHeight: 84,
-      tracking: 'normal', case: 'upper', textColor: '#D4A574', highlightColor: '#F2E8D5',
-      highlightEnabled: 'true', accentColor: '#8B6F47',
-      shadowType: 'blur', shadowColor: '#1A0E08', shadowSize: 8, shadowOpacity: 180,
-      gradient: 'top-left', gradientOpacity: 170, gradientCoverage: 50,
-      brand: 'INEMA TDS', brandFont: 'dejavu', brandSize: 22, brandColor: '#8B6F47', brandPosition: 'bottom-left',
-      position: 'top-left'
-    },
-    boldoutline: {
-      font: 'anton', fontSize: 92, lastLineScale: 0, lineHeight: 98,
-      tracking: 'normal', case: 'upper', textColor: '#FFFFFF', highlightColor: '#FFFFFF',
-      highlightEnabled: 'false', accentColor: '#FFFFFF',
-      shadowType: 'outline', shadowColor: '#000000', shadowSize: 6, shadowOpacity: 255,
-      gradient: 'none', gradientOpacity: 0, gradientCoverage: 0,
-      brand: 'INEMA TDS', brandFont: 'anton', brandSize: 28, brandColor: '#FFFFFF', brandPosition: 'bottom-left',
-      position: 'center-left'
-    },
-    elegantdark: {
-      font: 'montserrat-extrabold', fontSize: 76, lastLineScale: 15, lineHeight: 86,
-      tracking: 'tight', case: 'upper', textColor: '#C9B37E', highlightColor: '#FFFFFF',
-      highlightEnabled: 'true', accentColor: '#C9B37E',
-      shadowType: 'blur', shadowColor: '#000000', shadowSize: 8, shadowOpacity: 190,
-      gradient: 'top-left', gradientOpacity: 170, gradientCoverage: 45,
-      brand: 'INEMA TDS', brandFont: 'montserrat-extrabold', brandSize: 24, brandColor: '#C9B37E', brandPosition: 'bottom-left',
-      position: 'top-left'
-    }
-  };
-  const p = presets[name];
+  const p = getPreset(name);
   if (!p) return;
 
-  // Highlight active preset button
-  document.querySelectorAll('.preset-btn').forEach(b => b.style.outline = 'none');
-  const activeBtn = document.querySelector(`.preset-btn[data-preset="${name}"]`);
-  if (activeBtn) activeBtn.style.outline = '3px solid var(--accent)';
-  document.getElementById('activePresetLabel').textContent = '(' + name + ')';
+  currentPreset = name;
+  highlightPreset(name);
 
   const s = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
   s('cfgDesignFont', p.font);
@@ -2022,8 +2189,21 @@ function applyThumbPreset(name) {
   s('cfgDesignStrokeSize', p.strokeSize || 2);
 }
 
+// Preset ativo atual e presets salvos (customizados)
+let currentPreset = 'fallback';
+let savedPresets = {};
+
+function highlightPreset(name) {
+  document.querySelectorAll('.preset-btn').forEach(b => b.style.outline = 'none');
+  const activeBtn = document.querySelector(`.preset-btn[data-preset="${name}"]`);
+  if (activeBtn) activeBtn.style.outline = '3px solid var(--accent)';
+  document.getElementById('activePresetLabel').textContent = '(' + name + ')';
+  const thumbLabel = document.getElementById('thumbPresetLabel');
+  if (thumbLabel) thumbLabel.textContent = 'preset: ' + name;
+}
+
 // --- Hour Picker ---
-const hourState = { pub: new Set(), corte: new Set() };
+const hourState = { pub: new Set(), corte: new Set(), import: new Set() };
 
 function buildHourPicker(name) {
   const container = document.getElementById(name + 'HourPicker');
@@ -2063,6 +2243,7 @@ function updateHourSummary(name) {
 // Atualizar summary quando muda o minuto
 document.getElementById('cfgCorteMinuto').addEventListener('input', () => updateHourSummary('corte'));
 document.getElementById('cfgPubMinuto').addEventListener('input', () => updateHourSummary('pub'));
+document.getElementById('cfgImportMinuto').addEventListener('input', () => updateHourSummary('import'));
 
 function hourPickerSelectAll(name) {
   for (let h = 0; h < 24; h++) hourState[name].add(h);
@@ -2305,6 +2486,7 @@ function showLivesView(view) {
 function filterLives() {
   const search = (document.getElementById('livesSearch').value || '').toLowerCase();
   const status = document.getElementById('livesStatus').value;
+  const origem = document.getElementById('livesOrigem').value;
   const order = document.getElementById('livesOrder').value;
   const tbody = document.getElementById('livesBody');
 
@@ -2317,6 +2499,9 @@ function filterLives() {
     if (status === 'aguardando_pub' && !(l.status_cortes === 'concluido' && qtd > 0 && pub < qtd)) return false;
     if (status === 'publicado' && !(l.status_cortes === 'concluido' && qtd > 0 && pub >= qtd)) return false;
     if (status === 'erro' && l.status_cortes !== 'erro') return false;
+    const isImport = (l.video_id || '').startsWith('import_');
+    if (origem === 'import' && !isImport) return false;
+    if (origem === 'live' && isImport) return false;
     return true;
   });
 
@@ -2365,7 +2550,7 @@ function filterLives() {
     <tr>
       <td><a href="${l.url}" target="_blank">${l.video_id}</a></td>
       <td>${l.data_live || '-'}</td>
-      <td title="${escapeHtml(l.titulo)}">${escapeHtml(l.titulo)}</td>
+      <td title="${escapeHtml(l.titulo)}">${l.video_id.startsWith('import_') ? '<span class="badge import">import</span> ' : ''}${escapeHtml(l.titulo)}</td>
       <td>${l.duracao_min ? l.duracao_min + ' min' : '-'}</td>
       <td>${cortesBadge}${reprocessBtn}</td>
       <td>${l.data_corte || l.data_publicacao || '-'}</td>
@@ -2429,6 +2614,7 @@ function filterPubs() {
   const search = (document.getElementById('pubSearch').value || '').toLowerCase();
   const statusFilter = document.getElementById('pubStatus').value;
   const privacy = document.getElementById('pubPrivacy').value;
+  const origem = document.getElementById('pubOrigem').value;
   const order = document.getElementById('pubOrder').value;
   const tbody = document.getElementById('pubBody');
 
@@ -2458,6 +2644,9 @@ function filterPubs() {
       if (!haystack.includes(search)) return false;
     }
     if (privacy && p._status === 'publicado' && p.privacy !== privacy) return false;
+    const isImport = (p.live_video_id || '').startsWith('import_');
+    if (origem === 'import' && !isImport) return false;
+    if (origem === 'live' && isImport) return false;
     return true;
   });
 
@@ -2497,7 +2686,7 @@ function filterPubs() {
       return `<tr style="opacity:0.8">
         <td><span class="badge erro">erro</span></td>
         <td title="${escapeHtml(p.clip_titulo)}">${escapeHtml(p.clip_titulo)}</td>
-        <td><a href="javascript:void(0)" onclick="goToLive('${p.live_video_id}')">${p.live_video_id}</a></td>
+        <td><a href="javascript:void(0)" onclick="goToLive('${p.live_video_id}')">${p.live_video_id.startsWith('import_') ? '<span class="badge import">import</span> ' : ''}${p.live_video_id}</a></td>
         <td>${p.data_publicacao || '-'}</td>
         <td><button class="small" style="background:var(--accent)" onclick="retryClip('${p.live_video_id}', '${escapeHtml(p.clip_titulo).replace(/'/g,"\\'")}', this)">republicar</button> <button class="small btn-delete" style="opacity:1" onclick="dismissErro('${p.live_video_id}', '${escapeHtml(p.clip_titulo).replace(/'/g,"\\'")}', this)" title="Remover erro">x</button></td>
         <td><span style="color:var(--red);font-size:0.75em">${p.clip_video_id}</span></td>
@@ -2515,7 +2704,7 @@ function filterPubs() {
       return `<tr>
         <td>${statusBadge}</td>
         <td title="${escapeHtml(p.clip_titulo)}">${escapeHtml(p.clip_titulo)}</td>
-        <td><a href="javascript:void(0)" onclick="goToLive('${p.live_video_id}')">${p.live_video_id}</a></td>
+        <td><a href="javascript:void(0)" onclick="goToLive('${p.live_video_id}')">${p.live_video_id.startsWith('import_') ? '<span class="badge import">import</span> ' : ''}${p.live_video_id}</a></td>
         <td>${p.data_publicacao}</td>
         <td>
           <span class="privacy-toggle" onclick="showPrivacyDropdown(this, '${p.clip_video_id}')" title="Clique para mudar">${p.privacy}</span>
@@ -2532,7 +2721,7 @@ function filterPubs() {
       return `<tr style="opacity:${isPaused ? '0.5' : '0.7'}">
         <td><span class="badge ${badgeCls} clickable" onclick="toggleClipPaused('${p.live_video_id}', '${escapeHtml(p.title).replace(/'/g,"\\'")}')" title="Clique para ${isPaused ? 'retomar' : 'parar'}">${badgeText}</span></td>
         <td title="${escapeHtml(p.title)}">${escapeHtml(p.title)}</td>
-        <td><a href="javascript:void(0)" onclick="goToLive('${p.live_video_id}')">${p.live_video_id}</a></td>
+        <td><a href="javascript:void(0)" onclick="goToLive('${p.live_video_id}')">${p.live_video_id.startsWith('import_') ? '<span class="badge import">import</span> ' : ''}${p.live_video_id}</a></td>
         <td>${p.start} → ${p.end}</td>
         <td>
           <span style="color:var(--muted);font-size:0.75em">-</span>
@@ -2636,38 +2825,14 @@ async function loadConfig() {
     document.getElementById('cfgThumbBrandColorHex').value = c.thumb_brand_color;
   }
 
-  // Design Thumb
-  setVal('cfgDesignFont', c.design_font);
-  setVal('cfgDesignFontSize', c.design_font_size);
-  setVal('cfgDesignLastLineScale', c.design_last_line_scale);
-  setVal('cfgDesignLineHeight', c.design_line_height);
-  setVal('cfgDesignTracking', c.design_tracking);
-  setVal('cfgDesignCase', c.design_case);
-  if (c.design_text_color) { setVal('cfgDesignTextColor', c.design_text_color); setVal('cfgDesignTextColorHex', c.design_text_color); }
-  if (c.design_highlight_color) { setVal('cfgDesignHighlightColor', c.design_highlight_color); setVal('cfgDesignHighlightColorHex', c.design_highlight_color); }
-  setVal('cfgDesignHighlightEnabled', c.design_highlight_enabled);
-  if (c.design_accent_color) { setVal('cfgDesignAccentColor', c.design_accent_color); setVal('cfgDesignAccentColorHex', c.design_accent_color); }
-  setVal('cfgDesignAccentWidth', c.design_accent_width);
-  setVal('cfgDesignAccentHeight', c.design_accent_height);
-  setVal('cfgDesignAccentGap', c.design_accent_gap);
-  setVal('cfgDesignAccentEnabled', c.design_accent_enabled);
-  setVal('cfgDesignStrokeEnabled', c.design_stroke_enabled);
-  if (c.design_stroke_color) setVal('cfgDesignStrokeColor', c.design_stroke_color);
-  setVal('cfgDesignStrokeSize', c.design_stroke_size);
-  setVal('cfgDesignShadowType', c.design_shadow_type);
-  if (c.design_shadow_color) setVal('cfgDesignShadowColor', c.design_shadow_color);
-  setVal('cfgDesignShadowSize', c.design_shadow_size);
-  setVal('cfgDesignShadowOpacity', c.design_shadow_opacity);
-  setVal('cfgDesignGradient', c.design_gradient);
-  setVal('cfgDesignGradientOpacity', c.design_gradient_opacity);
-  setVal('cfgDesignGradientCoverage', c.design_gradient_coverage);
-  setVal('cfgDesignBrand', c.design_brand);
-  setVal('cfgDesignBrandFont', c.design_brand_font);
-  setVal('cfgDesignBrandSize', c.design_brand_size);
-  if (c.design_brand_color) { setVal('cfgDesignBrandColor', c.design_brand_color); setVal('cfgDesignBrandColorHex', c.design_brand_color); }
-  setVal('cfgDesignBrandPosition', c.design_brand_position);
-  setVal('cfgDesignPosition', c.design_position);
-  setVal('cfgDesignFallbackPreset', c.design_fallback_preset);
+  // Design Thumb - carregar presets salvos do config
+  savedPresets = {};
+  for (const key of Object.keys(c)) {
+    if (key.startsWith('preset_') && c[key]) {
+      try { savedPresets[key.slice(7)] = JSON.parse(c[key]); } catch(e) {}
+    }
+  }
+
   // Restore random preset checkboxes
   if (c.design_random_presets) {
     const randoms = c.design_random_presets.split(',');
@@ -2676,12 +2841,29 @@ async function loadConfig() {
     });
   }
 
+  // Aplicar preset ativo (carrega todos os campos do preset)
+  currentPreset = c.design_active_preset || 'fallback';
+  applyThumbPreset(currentPreset);
+
   // Pipeline state
   cortesPaused = c.pipeline_cortes_paused === 'true';
   pubPaused = c.pipeline_pub_paused === 'true';
+  importsPaused = c.pipeline_imports_paused === 'true';
   syncAutoActive = c.sync_auto === 'true';
   updatePipelineBtns();
   updateAutoSyncBtn();
+
+  // Imports
+  const setSelect = (name, val) => { const el = document.querySelector(`[name="${name}"]`); if (el && val) el.value = val; };
+  setSelect('import_auto', c.import_auto);
+  setSelect('import_gerar_descricao', c.import_gerar_descricao);
+  setSelect('import_fila_global', c.import_fila_global);
+  if (c.import_pub_horarios) {
+    hourState.import = stringToHours(c.import_pub_horarios);
+    buildHourPicker('import');
+  }
+  if (c.import_minuto) document.getElementById('cfgImportMinuto').value = c.import_minuto;
+  toggleImportHorarios(c.import_fila_global || 'true');
 
   // Prompts
   try {
@@ -2841,6 +3023,26 @@ async function syncLives() {
   const dateTo = document.getElementById('syncDateTo').value;
   const maxLives = parseInt(document.getElementById('syncMaxLives').value);
 
+  // Validar datas antes de enviar
+  function isValidDate(dateStr) {
+    if (!dateStr) return true;
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d;
+  }
+  if (dateFrom && !isValidDate(dateFrom)) {
+    showToast(`Data inicio invalida: ${dateFrom} (dia nao existe nesse mes)`, 'error');
+    btn.disabled = false;
+    btn.textContent = 'Sincronizar Lives';
+    return;
+  }
+  if (dateTo && !isValidDate(dateTo)) {
+    showToast(`Data fim invalida: ${dateTo} (dia nao existe nesse mes)`, 'error');
+    btn.disabled = false;
+    btn.textContent = 'Sincronizar Lives';
+    return;
+  }
+
   const payload = { mode, max_lives: maxLives };
   if (dateFrom) payload.date_from = dateFrom;
   if (dateTo) payload.date_to = dateTo;
@@ -2904,9 +3106,12 @@ async function toggleAutoSync() {
   btn.disabled = false;
 }
 
+let importsPaused = false;
+
 function updatePipelineBtns() {
   const btnC = document.getElementById('btnCortes');
   const btnP = document.getElementById('btnPub');
+  const btnI = document.getElementById('btnImports');
   if (cortesPaused) {
     btnC.textContent = 'Retomar Cortes';
     btnC.className = 'small';
@@ -2921,10 +3126,18 @@ function updatePipelineBtns() {
     btnP.textContent = 'Parar Publicacao';
     btnP.className = 'danger small';
   }
+  if (importsPaused) {
+    btnI.textContent = 'Retomar Imports';
+    btnI.className = 'small';
+  } else {
+    btnI.textContent = 'Parar Imports';
+    btnI.className = 'danger small';
+  }
 }
 
 async function togglePipeline(target) {
-  const btn = target === 'cortes' ? document.getElementById('btnCortes') : document.getElementById('btnPub');
+  const btnMap = { cortes: 'btnCortes', pub: 'btnPub', imports: 'btnImports' };
+  const btn = document.getElementById(btnMap[target]);
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>...';
 
@@ -2936,9 +3149,10 @@ async function togglePipeline(target) {
     });
 
     if (target === 'cortes') cortesPaused = resp.paused;
-    else pubPaused = resp.paused;
+    else if (target === 'pub') pubPaused = resp.paused;
+    else if (target === 'imports') importsPaused = resp.paused;
     updatePipelineBtns();
-    const label = target === 'cortes' ? 'Cortes' : 'Publicacao';
+    const label = { cortes: 'Cortes', pub: 'Publicacao', imports: 'Imports' }[target];
     showToast(resp.paused ? `${label} pausado` : `${label} retomado`);
   } catch (e) {
     showToast('Erro: ' + e.message, 'error');
@@ -3030,7 +3244,7 @@ setInterval(updateNextSchedules, 30000);
 // --- Health check ---
 const healthMap = {
   yt_dlp: 'hDotYtdlp',
-  sheets: 'hDotSheets',
+  database: 'hDotDatabase',
   api_ia: 'hDotIa',
   api_thumb: 'hDotThumb',
   youtube: 'hDotYoutube',
@@ -3323,6 +3537,18 @@ loadAll();
       <button onclick="closeModal('modalChangelog')" style="background:none;border:none;color:var(--muted);font-size:1.2em;cursor:pointer">X</button>
     </div>
     <div class="modal-body" style="padding:16px;overflow-y:auto;font-size:0.85em;line-height:1.8">
+      <h3 style="color:var(--accent);margin-bottom:8px">v3.18.24</h3>
+      <p style="color:var(--muted);margin-bottom:4px"><strong>Features:</strong></p>
+      <ul style="margin:0 0 8px 20px;color:var(--text)">
+        <li>Aba Planilha: visualizar, editar, download CSV e upload CSV das abas CONFIG/LIVES/PUBLICADOS</li>
+        <li>Presets editaveis: customizacoes salvas por preset (persistem no banco local)</li>
+        <li>Novos presets TikTok e Stories</li>
+      </ul>
+      <p style="color:var(--muted);margin-bottom:4px"><strong>Fixes:</strong></p>
+      <ul style="margin:0 0 16px 20px;color:var(--text)">
+        <li>Simplificacao fallback: sempre usa preset "fallback" (removido seletor separado)</li>
+      </ul>
+
       <h3 style="color:var(--accent);margin-bottom:8px">v3.15.23</h3>
       <p style="color:var(--muted);margin-bottom:4px"><strong>Features:</strong></p>
       <ul style="margin:0 0 8px 20px;color:var(--text)">
@@ -3373,7 +3599,7 @@ loadAll();
       <p style="color:var(--muted);margin-bottom:4px"><strong>Features:</strong></p>
       <ul style="margin:0 0 8px 20px;color:var(--text)">
         <li>Lock na planilha: marca "publicando" antes de enviar, evita duplicatas entre processos</li>
-        <li>Health bar - status do sistema (yt-dlp, Sheets, APIs, YouTube, Scheduler)</li>
+        <li>Health bar - status do sistema (yt-dlp, Database, APIs, YouTube, Scheduler)</li>
         <li>Proximos horarios de corte/pub visiveis no dashboard</li>
         <li>Toggle "Link da live na descricao" nas configuracoes</li>
         <li>Corte roda em thread separada - nao bloqueia publicacao</li>
