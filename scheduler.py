@@ -569,8 +569,9 @@ def update_video_metadata(video_id, title, description):
 
 
 def generate_enrich_thumbnail(title, config):
-    """Generate thumbnail with default background + text overlay for enrichment."""
+    """Generate thumbnail with default background + text overlay using Design Thumb settings."""
     import types
+    import random
     from PIL import Image
 
     default_bg_path = os.path.join(CONFIG_DIR, 'thumb_default.jpg')
@@ -579,26 +580,54 @@ def generate_enrich_thumbnail(title, config):
     if os.path.exists(default_bg_path):
         bg = Image.open(default_bg_path).resize((1280, 720), Image.LANCZOS).convert('RGB')
     else:
-        # Generate dark gradient background and save for future use
         bg = Image.new('RGB', (1280, 720))
         for y in range(720):
-            r = int(26 - 11 * y / 720)   # #1a -> #0f
+            r = int(26 - 11 * y / 720)
             g = int(26 - 11 * y / 720)
-            b = int(46 - 11 * y / 720)   # #2e -> #23
+            b = int(46 - 11 * y / 720)
             for x in range(1280):
                 bg.putpixel((x, y), (max(r, 0), max(g, 0), max(b, 0)))
         bg.save(default_bg_path, 'JPEG', quality=92)
         log(f'  Generated default thumbnail background: {default_bg_path}')
 
-    # Load yt-thumbnail module for compose_thumbnail
+    # Apply Design Thumb config from database (same as handle_thumbnail)
+    for key in ('design_font', 'design_font_size', 'design_last_line_scale',
+                'design_line_height', 'design_tracking', 'design_case',
+                'design_text_color', 'design_highlight_color', 'design_highlight_enabled',
+                'design_accent_color', 'design_accent_width',
+                'design_accent_height', 'design_accent_gap', 'design_accent_enabled',
+                'design_stroke_enabled', 'design_stroke_color', 'design_stroke_size',
+                'design_shadow_type', 'design_shadow_color', 'design_shadow_size',
+                'design_shadow_opacity', 'design_gradient', 'design_gradient_opacity',
+                'design_gradient_coverage', 'design_brand', 'design_brand_font',
+                'design_brand_size', 'design_brand_color', 'design_brand_position',
+                'design_position'):
+        val = config.get(key, '')
+        if val:
+            os.environ[key.upper()] = val
+
+    # Random preset: if configured, pick one
+    random_presets_str = config.get('design_random_presets', '')
+    if random_presets_str:
+        random_list = [p.strip() for p in random_presets_str.split(',') if p.strip()]
+        if random_list:
+            chosen = random.choice(random_list)
+            os.environ['DESIGN_RANDOM_PRESET'] = chosen
+            saved = config.get(f'preset_{chosen}', '')
+            if saved:
+                os.environ['DESIGN_SAVED_PRESET'] = saved
+            log(f'  Enrich thumb preset: {chosen}')
+
+    # Load yt-thumbnail module
     script_path = os.path.join(SCRIPTS_DIR, 'yt-thumbnail')
     yt_thumb = types.ModuleType('yt_thumbnail')
     yt_thumb.__file__ = script_path
     with open(script_path) as _f:
         exec(compile(_f.read(), script_path, 'exec'), yt_thumb.__dict__)
 
-    # Apply fallback preset
-    _apply_saved_preset('fallback', config, yt_thumb)
+    # If no random preset was set, apply fallback
+    if not random_presets_str:
+        _apply_saved_preset('fallback', config, yt_thumb)
 
     # Compose thumbnail with title text
     thumb_path = f'/tmp/yt_enrich_{int(time.time())}.jpg'
@@ -606,8 +635,8 @@ def generate_enrich_thumbnail(title, config):
     return thumb_path
 
 
-def enrich_live_with_ai(video_id, data_live, duracao_min, config):
-    """Use AI to generate title and description for a generic-titled live."""
+def enrich_live_with_ai(video_id, data_live, duracao_min, transcript_text, config):
+    """Use AI to generate title and description based on the live's transcript."""
     prompt_file = os.path.join(CONFIG_DIR, 'prompt_enrich.txt')
     if not os.path.exists(prompt_file):
         log(f'  prompt_enrich.txt not found, skipping AI enrichment')
@@ -621,7 +650,8 @@ def enrich_live_with_ai(video_id, data_live, duracao_min, config):
     user_msg = (
         f'Video ID: {video_id}\n'
         f'Data da live: {data_live}\n'
-        f'Duracao: {duracao_min} minutos'
+        f'Duracao: {duracao_min} minutos\n\n'
+        f'=== TRANSCRICAO DA LIVE ===\n{transcript_text}'
     )
     full_prompt = f'{system_prompt}\n\n---\n\n{user_msg}'
 
@@ -631,7 +661,7 @@ def enrich_live_with_ai(video_id, data_live, duracao_min, config):
         env.pop('CLAUDECODE', None)
         result = subprocess.run(
             ['claude', '-p', '--output-format', 'json', full_prompt],
-            capture_output=True, text=True, timeout=120, env=env
+            capture_output=True, text=True, timeout=180, env=env
         )
         if result.returncode != 0:
             log(f'  Claude CLI erro (code {result.returncode}): {result.stderr[:200]}')
@@ -656,24 +686,84 @@ def enrich_live_with_ai(video_id, data_live, duracao_min, config):
         return None, None
 
 
+def _enrich_single_live(vid, live, config):
+    """Enrich a single live: read transcript → AI title/desc → thumbnail → YouTube update.
+    Returns True on success, False on error."""
+    data_live = live.get('data_live', '')
+    duracao = live.get('duracao_min', '0')
+
+    # Read transcript
+    condensed_file = os.path.join(LIVES_DIR, vid, 'condensed.txt')
+    if not os.path.exists(condensed_file):
+        log(f'  Enrich: transcricao nao encontrada para {vid}')
+        return False
+
+    with open(condensed_file) as f:
+        transcript = f.read()
+    if not transcript:
+        log(f'  Enrich: transcricao vazia para {vid}')
+        return False
+
+    # Generate title + description with AI
+    update_status('enriquecendo', f'Gerando titulo/descricao: {vid}', vid, step='analise')
+    new_title, new_desc = enrich_live_with_ai(vid, data_live, duracao, transcript, config)
+    if not new_title:
+        log(f'  Enrich: IA nao gerou titulo para {vid}')
+        return False
+
+    # Update on YouTube (title + description)
+    try:
+        update_video_metadata(vid, new_title, new_desc or '')
+    except Exception as yt_err:
+        log(f'  Enrich: erro ao atualizar YouTube para {vid}: {yt_err}')
+        # Still update local DB even if YouTube fails (e.g. wrong channel)
+
+    # Generate and upload thumbnail
+    try:
+        update_status('enriquecendo', f'Thumbnail: {vid}', vid, step='thumbnail')
+        thumb_path = generate_enrich_thumbnail(new_title, config)
+        if thumb_path and os.path.exists(thumb_path):
+            thumbs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lives', 'thumbs')
+            os.makedirs(thumbs_dir, exist_ok=True)
+            import shutil
+            shutil.copy2(thumb_path, os.path.join(thumbs_dir, f'{vid}.jpg'))
+            try:
+                upload_thumbnail(vid, thumb_path)
+            except Exception as upload_err:
+                log(f'  Enrich: thumbnail upload failed (non-fatal): {upload_err}')
+            try:
+                os.remove(thumb_path)
+            except OSError:
+                pass
+    except Exception as thumb_err:
+        log(f'  Enrich: thumbnail error for {vid} (non-fatal): {thumb_err}')
+
+    # Update local database
+    db.update_live(vid, titulo=new_title, observacoes='enriquecida')
+    log(f'  Enrich OK: {vid} -> {new_title[:60]}')
+    return True
+
+
 def process_enrich(config):
-    """Enrich lives with generic title (INEMA) — generates title, description, and thumbnail."""
+    """Manual enrich: if no cuts exist, run cuts first, then enrich."""
     max_por_vez = int(config.get('enrich_max_por_vez', '3'))
     lives = get_pending_lives()
 
-    # Filter lives with generic title (only "INEMA", case-insensitive)
+    # Filter: lives with generic title OR marked for re-enrichment
     genericas = [
         l for l in lives
-        if l.get('titulo', '').strip().upper() == 'INEMA'
-        and l.get('observacoes', '') != 'enriquecida'
-        and not (l.get('video_id', '') or '').startswith('import_')
+        if not (l.get('video_id', '') or '').startswith('import_')
+        and (
+            (l.get('titulo', '').strip().upper() == 'INEMA' and l.get('observacoes', '') != 'enriquecida')
+            or l.get('observacoes', '') == 'refazer_enrich'
+        )
     ]
 
     if not genericas:
-        log('  Nenhuma live generica para enriquecer')
+        log('  Nenhuma live para enriquecer')
         return {'enriched': 0, 'errors': 0}
 
-    log(f'  {len(genericas)} lives genericas encontradas, processando ate {max_por_vez}')
+    log(f'  {len(genericas)} lives para enriquecer, processando ate {max_por_vez}')
     update_status('enriquecendo', f'Enriquecendo {min(len(genericas), max_por_vez)} lives...')
 
     enriched = 0
@@ -681,47 +771,40 @@ def process_enrich(config):
 
     for live in genericas[:max_por_vez]:
         vid = live.get('video_id', '')
-        data_live = live.get('data_live', '')
-        duracao = live.get('duracao_min', '0')
 
         try:
-            # 1. Generate title + description with AI
-            new_title, new_desc = enrich_live_with_ai(vid, data_live, duracao, config)
-            if not new_title:
-                log(f'  Skipping {vid}: IA nao gerou titulo')
+            # If no transcript yet, run full cut process first
+            condensed_file = os.path.join(LIVES_DIR, vid, 'condensed.txt')
+            if not os.path.exists(condensed_file):
+                log(f'  Sem transcricao para {vid}, rodando corte primeiro...')
+                update_status('enriquecendo', f'Cortando: {vid}', vid, step='corte')
+                success = run_corte(vid, config)
+                if success:
+                    job_dir = os.path.join(LIVES_DIR, vid)
+                    topics_file = os.path.join(job_dir, 'topics.json')
+                    clips_dir = os.path.join(job_dir, 'clips')
+                    qtd_clips = 0
+                    if os.path.exists(topics_file):
+                        with open(topics_file) as f:
+                            topics = json.load(f)
+                        qtd_clips = len(topics.get('topics', []))
+                    has_clips = os.path.isdir(clips_dir) and len(os.listdir(clips_dir)) > 0
+                    update_live_status(vid, 'status_transcricao', 'transcricao', {
+                        'status_cortes': 'concluido' if has_clips else 'pendente',
+                        'qtd_clips': qtd_clips,
+                        'data_corte': datetime.now().strftime('%Y-%m-%d %H:%M')
+                    })
+                else:
+                    update_live_status(vid, 'status_cortes', 'erro')
+                    log(f'  Corte falhou para {vid}, pulando enrich')
+                    errors += 1
+                    continue
+
+            # Now enrich using the transcript
+            if _enrich_single_live(vid, live, config):
+                enriched += 1
+            else:
                 errors += 1
-                continue
-
-            # 2. Update on YouTube
-            try:
-                update_video_metadata(vid, new_title, new_desc or '')
-            except Exception as yt_err:
-                log(f'  Erro ao atualizar YouTube para {vid}: {yt_err}')
-                errors += 1
-                continue
-
-            # 3. Generate and upload thumbnail
-            try:
-                thumb_path = generate_enrich_thumbnail(new_title, config)
-                if thumb_path and os.path.exists(thumb_path):
-                    # Save copy
-                    thumbs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lives', 'thumbs')
-                    os.makedirs(thumbs_dir, exist_ok=True)
-                    import shutil
-                    shutil.copy2(thumb_path, os.path.join(thumbs_dir, f'{vid}.jpg'))
-
-                    upload_thumbnail(vid, thumb_path)
-                    try:
-                        os.remove(thumb_path)
-                    except OSError:
-                        pass
-            except Exception as thumb_err:
-                log(f'  Thumbnail error for {vid} (non-fatal): {thumb_err}')
-
-            # 4. Update local database
-            db.update_live(vid, titulo=new_title, observacoes='enriquecida')
-            enriched += 1
-            log(f'  Live {vid} enriquecida com sucesso!')
 
         except Exception as e:
             log(f'  Erro ao enriquecer {vid}: {e}')
@@ -775,6 +858,17 @@ def process_cortes(config):
                 'qtd_clips': qtd_clips,
                 'data_corte': datetime.now().strftime('%Y-%m-%d %H:%M')
             })
+
+            # If enrich is enabled, enrich after cutting
+            enrich_auto = config.get('enrich_auto', 'false') == 'true'
+            enrich_paused = config.get('pipeline_enrich_paused', 'false') == 'true'
+            needs_enrich = (
+                live.get('titulo', '').strip().upper() == 'INEMA'
+                and live.get('observacoes', '') != 'enriquecida'
+            )
+            if enrich_auto and not enrich_paused and needs_enrich:
+                log(f'  Enrich auto: enriquecendo {vid} apos corte...')
+                _enrich_single_live(vid, live, config)
         else:
             update_live_status(vid, 'status_cortes', 'erro')
 
@@ -843,23 +937,26 @@ def _process_publicacao_imports_inner(config):
         with open(manifest_file) as f:
             clips = json.load(f)
 
+        from collections import Counter
         pub_records = db.get_publicados(live_video_id=vid)
-        published_titles = set()
-        erro_titles = set()
+        published_counts = Counter()
+        erro_counts = Counter()
         for p in pub_records:
             vid_status = p.get('clip_video_id', '')
             titulo = p.get('clip_titulo', '')
             if vid_status in ('erro_upload', 'publicando', ''):
-                erro_titles.add(titulo)
+                erro_counts[titulo] += 1
             else:
-                published_titles.add(titulo)
-        all_known_titles = published_titles | erro_titles
+                published_counts[titulo] += 1
+        known_counts = published_counts + erro_counts
 
         count = 0
+        manifest_seen = Counter()
         for clip in clips:
             if count >= max_por_vez:
                 break
-            if clip['title'] in all_known_titles:
+            manifest_seen[clip['title']] += 1
+            if manifest_seen[clip['title']] <= known_counts.get(clip['title'], 0):
                 continue
             if clip.get('paused', False):
                 continue
@@ -868,13 +965,16 @@ def _process_publicacao_imports_inner(config):
                 continue
 
             clip_title = clip['title']
+            # Add number suffix for duplicate titles
+            if published_counts[clip_title] > 0 or manifest_seen[clip_title] > 1:
+                clip_title = f'{clip_title} #{manifest_seen[clip_title]}'
             clip_desc = clip.get('description', '') or clip.get('title', '')
             clip_privacy = clip.get('privacy', privacy)
 
             now = datetime.now().strftime('%Y-%m-%d %H:%M')
             lock_row_id = db.add_publicado({
                 'clip_video_id': 'publicando',
-                'clip_titulo': clip['title'],
+                'clip_titulo': clip_title,
                 'clip_url': '',
                 'live_video_id': vid,
                 'live_titulo': live.get('titulo', ''),
@@ -895,18 +995,18 @@ def _process_publicacao_imports_inner(config):
                 handle_thumbnail(new_vid, clip_title, clip_desc, config)
                 db.update_publicado(lock_row_id,
                     clip_video_id=new_vid,
-                    clip_titulo=clip['title'],
+                    clip_titulo=clip_title,
                     clip_url=f'https://www.youtube.com/watch?v={new_vid}'
                 )
                 count += 1
-                published_titles.add(clip['title'])
-                log(f'  [import] Publicado: {clip["title"][:50]} -> {new_vid}')
+                published_counts[clip['title']] += 1
+                log(f'  [import] Publicado: {clip_title[:50]} -> {new_vid}')
             else:
                 db.update_publicado(lock_row_id, clip_video_id='erro_upload')
                 count += 1
-                log(f'  [import] Falha: {clip["title"][:50]}')
+                log(f'  [import] Falha: {clip_title[:50]}')
 
-        actual_published = sum(1 for c in clips if c['title'] in published_titles)
+        actual_published = sum(published_counts.values())
         if actual_published != publicados_count:
             update_live_status(vid, 'clips_publicados', str(actual_published))
 
@@ -950,29 +1050,30 @@ def _process_publicacao_inner(config):
         with open(manifest_file) as f:
             clips = json.load(f)
 
-        # Check which clips are already in the DB
+        # Check which clips are already in the DB (count duplicates)
+        from collections import Counter
         pub_records = db.get_publicados(live_video_id=vid)
-        published_titles = set()
-        erro_titles = set()
+        published_counts = Counter()
+        erro_counts = Counter()
         for p in pub_records:
             vid_status = p.get('clip_video_id', '')
             titulo = p.get('clip_titulo', '')
             if vid_status in ('erro_upload', 'publicando', ''):
-                erro_titles.add(titulo)
+                erro_counts[titulo] += 1
             else:
-                published_titles.add(titulo)
-        all_known_titles = published_titles | erro_titles
+                published_counts[titulo] += 1
+        known_counts = published_counts + erro_counts
 
         count = 0
-        log(f'  {len(clips)} clips no manifest, {len(published_titles)} publicados OK, {len(erro_titles)} com erro')
+        manifest_seen = Counter()
+        log(f'  {len(clips)} clips no manifest, {sum(published_counts.values())} publicados OK, {sum(erro_counts.values())} com erro')
         for clip in clips:
             if count >= max_por_vez:
                 log(f'  Limite de {max_por_vez} clips por vez atingido')
                 break
 
-            if clip['title'] in all_known_titles:
-                status = 'publicado' if clip['title'] in published_titles else 'erro/pendente'
-                log(f'  Ja no banco ({status}): {clip["title"][:50]}')
+            manifest_seen[clip['title']] += 1
+            if manifest_seen[clip['title']] <= known_counts.get(clip['title'], 0):
                 continue
 
             if clip.get('paused', False):
@@ -984,13 +1085,16 @@ def _process_publicacao_inner(config):
                 continue
 
             clip_title = clip['title']
+            # Add number suffix for duplicate titles
+            if published_counts[clip_title] > 0 or manifest_seen[clip_title] > 1:
+                clip_title = f'{clip_title} #{manifest_seen[clip_title]}'
             clip_desc = clip.get('description', '') or clip.get('title', '')
 
             # Lock no banco: marcar como "publicando" ANTES de iniciar
             now = datetime.now().strftime('%Y-%m-%d %H:%M')
             lock_row_id = db.add_publicado({
                 'clip_video_id': 'publicando',
-                'clip_titulo': clip['title'],
+                'clip_titulo': clip_title,
                 'clip_url': '',
                 'live_video_id': vid,
                 'live_titulo': live.get('titulo', ''),
@@ -1000,7 +1104,7 @@ def _process_publicacao_inner(config):
                 'tags': ','.join(clip.get('tags', [])),
                 'categoria': '27'
             })
-            log(f'  Reservado no banco: {clip["title"][:50]}')
+            log(f'  Reservado no banco: {clip_title[:50]}')
 
             # Refinar titulo e descricao com IA
             update_status('publicando', f'Refinando com IA: {clip_title[:50]}', vid, step='refine', clip_title=clip_title[:50])
@@ -1028,21 +1132,21 @@ def _process_publicacao_inner(config):
                 # Atualizar no banco: "publicando" -> video_id real
                 db.update_publicado(lock_row_id,
                     clip_video_id=new_vid,
-                    clip_titulo=clip['title'],
+                    clip_titulo=clip_title,
                     clip_url=f'https://www.youtube.com/watch?v={new_vid}'
                 )
 
                 count += 1
-                published_titles.add(clip['title'])
-                log(f'  Publicado: {clip["title"][:50]} -> {new_vid}')
+                published_counts[clip['title']] += 1
+                log(f'  Publicado: {clip_title[:50]} -> {new_vid}')
             else:
                 # Upload falhou: marcar como erro
                 db.update_publicado(lock_row_id, clip_video_id='erro_upload')
                 count += 1
-                log(f'  Falha ao publicar: {clip["title"][:50]}')
+                log(f'  Falha ao publicar: {clip_title[:50]}')
 
         # Update counter if clips were published OR if counter is out of sync
-        actual_published = sum(1 for c in clips if c['title'] in published_titles)
+        actual_published = sum(published_counts.values())
         new_total = actual_published
         if new_total != publicados_count:
             update_live_status(vid, 'clips_publicados', str(new_total))

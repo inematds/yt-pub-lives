@@ -139,6 +139,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         elif path == '/api/sheet':
             sheet_name = qs.get('name', ['CONFIG'])[0]
             self.handle_sheet_read(sheet_name)
+        elif path == '/api/enrich/bg':
+            self.handle_enrich_bg_get()
         elif path == '/api/health':
             self.handle_api_health()
         elif path.startswith('/clips/'):
@@ -203,6 +205,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.handle_import_clean(data)
         elif post_path == '/api/enrich':
             self.handle_enrich_run()
+        elif post_path == '/api/enrich/upload-bg':
+            self.handle_enrich_upload_bg(data)
+        elif post_path == '/api/enrich/mark':
+            self.handle_enrich_mark(data)
         else:
             self.send_json(404, {'error': 'not found'})
 
@@ -518,6 +524,47 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             config = load_config()
             result = process_enrich(config)
             self.send_json(200, {'ok': True, **result})
+        except Exception as e:
+            self.send_json(500, {'error': str(e)})
+
+    def handle_enrich_mark(self, data):
+        """Mark a live for enrichment (redo title + description)."""
+        video_id = data.get('video_id', '')
+        if not video_id:
+            self.send_json(400, {'error': 'video_id required'})
+            return
+        db.update_live(video_id, observacoes='refazer_enrich')
+        self.send_json(200, {'ok': True, 'video_id': video_id})
+
+    def handle_enrich_bg_get(self):
+        """Serve the enrich background image."""
+        config_dir = os.environ.get('GWS_CONFIG_DIR', os.path.join(PROJECT_ROOT, 'config'))
+        bg_path = os.path.join(config_dir, 'thumb_default.jpg')
+        if os.path.exists(bg_path):
+            with open(bg_path, 'rb') as f:
+                data = f.read()
+            self.send_response(200)
+            self.send_header('Content-Type', 'image/jpeg')
+            self.send_header('Content-Length', str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+        else:
+            self.send_json(404, {'error': 'no background image'})
+
+    def handle_enrich_upload_bg(self, data):
+        """Upload a default background image for enrich thumbnails."""
+        import base64
+        try:
+            img_b64 = data.get('image', '')
+            if not img_b64:
+                self.send_json(400, {'error': 'image (base64) required'})
+                return
+            img_data = base64.b64decode(img_b64)
+            config_dir = os.environ.get('GWS_CONFIG_DIR', os.path.join(PROJECT_ROOT, 'config'))
+            bg_path = os.path.join(config_dir, 'thumb_default.jpg')
+            with open(bg_path, 'wb') as f:
+                f.write(img_data)
+            self.send_json(200, {'ok': True, 'size': len(img_data), 'path': bg_path})
         except Exception as e:
             self.send_json(500, {'error': str(e)})
 

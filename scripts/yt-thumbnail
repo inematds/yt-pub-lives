@@ -631,23 +631,24 @@ def compose_thumbnail(bg, frase_curta, cores_str, output_path):
     total_height = len(lines) * design_line_height
 
     # Position
+    bottom_y = int(HEIGHT - total_height - HEIGHT * 0.12)
     positions = {
-        'top-left':      (int(WIDTH * 0.10), int(HEIGHT * 0.08)),
-        'top-center':    (int(WIDTH * 0.10), int(HEIGHT * 0.08)),
-        'top-right':     (int(WIDTH * 0.10), int(HEIGHT * 0.08)),
-        'center':        (int(WIDTH * 0.10), int((HEIGHT - total_height) / 2)),
+        'top-left':      (int(WIDTH * 0.05), int(HEIGHT * 0.08)),
+        'top-center':    (int(WIDTH * 0.05), int(HEIGHT * 0.08)),
+        'top-right':     (int(WIDTH * 0.05), int(HEIGHT * 0.08)),
+        'center':        (int(WIDTH * 0.05), int((HEIGHT - total_height) / 2)),
         'center-left':   (int(WIDTH * 0.05), int((HEIGHT - total_height) / 2)),
-        'center-right':  (int(WIDTH * 0.10), int((HEIGHT - total_height) / 2)),
-        'bottom-left':   (int(WIDTH * 0.10), int(HEIGHT * 0.65)),
-        'bottom-center': (int(WIDTH * 0.10), int(HEIGHT * 0.65)),
-        'bottom-right':  (int(WIDTH * 0.10), int(HEIGHT * 0.65)),
+        'center-right':  (int(WIDTH * 0.05), int((HEIGHT - total_height) / 2)),
+        'bottom-left':   (int(WIDTH * 0.05), bottom_y),
+        'bottom-center': (int(WIDTH * 0.05), bottom_y),
+        'bottom-right':  (int(WIDTH * 0.05), bottom_y),
     }
     x_start, y_start = positions.get(design_position, positions['top-left'])
 
     # Horizontal alignment
     if 'right' in design_position:
         max_line_w = max(draw_temp.textbbox((0, 0), l, font=font)[2] for l in lines) if lines else 0
-        x_start = WIDTH - max_line_w - int(WIDTH * 0.10)
+        x_start = WIDTH - max_line_w - int(WIDTH * 0.05)
     elif 'center' in design_position and 'left' not in design_position and 'right' not in design_position:
         max_line_w = max(draw_temp.textbbox((0, 0), l, font=font)[2] for l in lines) if lines else 0
         x_start = int((WIDTH - max_line_w) / 2)

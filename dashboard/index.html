@@ -1642,6 +1642,24 @@
       </div>
 
       <div class="config-section">
+        <h3>Imagem de Fundo (Thumbnail)</h3>
+        <p style="color:var(--muted);font-size:0.82em;margin-bottom:8px">Imagem usada como fundo da thumbnail das lives enriquecidas. Se nao definida, usa gradiente escuro.</p>
+        <div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
+          <div>
+            <img id="enrichBgPreview" src="" style="max-width:320px;max-height:180px;border-radius:8px;border:1px solid var(--border);display:none">
+            <div id="enrichBgPlaceholder" style="width:320px;height:180px;border-radius:8px;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:0.82em">Nenhuma imagem</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <label style="background:var(--accent);color:#fff;padding:6px 16px;border-radius:6px;cursor:pointer;text-align:center;font-size:0.85em">
+              Escolher imagem
+              <input type="file" id="enrichBgFile" accept="image/*" style="display:none" onchange="enrichUploadBg(this)">
+            </label>
+            <span id="enrichBgMsg" style="color:var(--muted);font-size:0.78em"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="config-section">
         <h3>Acoes</h3>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
           <button onclick="enrichRunNow(this)" style="background:var(--accent);">Enriquecer Agora</button>
@@ -1912,6 +1930,39 @@ async function saveEnrich(btn) {
     if (btn) { btn.textContent = 'Salvo!'; setTimeout(() => { btn.textContent = 'Salvar'; btn.disabled = false; }, 1500); }
   } catch (e) {
     if (btn) { btn.textContent = 'Erro'; btn.disabled = false; }
+  }
+}
+
+async function enrichUploadBg(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const msg = document.getElementById('enrichBgMsg');
+  msg.textContent = 'Enviando...';
+  msg.style.color = 'var(--muted)';
+  try {
+    const reader = new FileReader();
+    reader.onload = async function() {
+      const b64 = reader.result.split(',')[1];
+      const resp = await fetchJson('/api/enrich/upload-bg', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ image: b64 })
+      });
+      if (resp.ok) {
+        msg.textContent = 'Imagem salva!';
+        msg.style.color = 'var(--green)';
+        document.getElementById('enrichBgPreview').src = reader.result;
+        document.getElementById('enrichBgPreview').style.display = '';
+        document.getElementById('enrichBgPlaceholder').style.display = 'none';
+      } else {
+        msg.textContent = 'Erro: ' + (resp.error || 'desconhecido');
+        msg.style.color = 'var(--red)';
+      }
+    };
+    reader.readAsDataURL(file);
+  } catch (e) {
+    msg.textContent = 'Erro: ' + e;
+    msg.style.color = 'var(--red)';
   }
 }
 
@@ -2714,6 +2765,10 @@ function filterLives() {
     const reprocessBtn = l.status_cortes === 'erro'
       ? ` <span class="badge pendente clickable" onclick="reprocessLive('${l.video_id}')" title="Reprocessar este video">↻</span>`
       : '';
+    const enrichQueued = l.observacoes === 'refazer_enrich';
+    const enrichBtn = enrichQueued
+      ? ' <span class="badge" style="background:#a78bfa;color:#fff;font-size:0.7em">enrich</span>'
+      : ` <span class="badge clickable" style="cursor:pointer;background:var(--card);color:var(--accent);border:1px solid var(--accent);font-size:0.7em" onclick="markEnrich('${l.video_id}')" title="Refazer titulo e descricao com IA">✎</span>`;
 
     return `
     <tr>
@@ -2721,13 +2776,32 @@ function filterLives() {
       <td>${l.data_live || '-'}</td>
       <td title="${escapeHtml(l.titulo)}">${l.video_id.startsWith('import_') ? '<span class="badge import">import</span> ' : ''}${escapeHtml(l.titulo)}</td>
       <td>${l.duracao_min ? l.duracao_min + ' min' : '-'}</td>
-      <td>${cortesBadge}${reprocessBtn}</td>
+      <td>${cortesBadge}${reprocessBtn}${enrichBtn}</td>
       <td>${l.data_corte || l.data_publicacao || '-'}</td>
       <td style="cursor:pointer" onclick="goToClips('${l.video_id}')">${l.qtd_clips || '0'}</td>
       <td style="cursor:pointer" onclick="goToClips('${l.video_id}')"><span style="color:${parseInt(l.clips_publicados||0) > 0 ? (parseInt(l.clips_publicados||0) >= parseInt(l.qtd_clips||0) ? '#10b981' : '#f59e0b') : 'var(--muted)'}">${l.clips_publicados || '0'}</span></td>
       <td><span style="cursor:pointer;color:#ef4444;font-size:1.1em" onclick="deleteLiveFiles('${l.video_id}')" title="Deletar arquivos do disco">&#128465;</span></td>
     </tr>`;
   }).join('');
+}
+
+async function markEnrich(videoId) {
+  if (!confirm(`Marcar video ${videoId} para refazer titulo e descricao com IA?`)) return;
+  try {
+    const resp = await fetchJson('/api/enrich/mark', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({video_id: videoId})
+    });
+    if (resp.ok) {
+      showToast('Marcado para enrich! Clique "Enriquecer Agora" na aba Enrich para processar.');
+      loadLives();
+    } else {
+      showToast('Erro: ' + (resp.error || 'desconhecido'));
+    }
+  } catch (e) {
+    showToast('Erro: ' + e.message);
+  }
 }
 
 async function reprocessLive(videoId) {
@@ -3041,13 +3115,26 @@ async function loadConfig() {
   buildHourPicker('enrich');
   if (c.enrich_minuto) document.getElementById('cfgEnrichMinuto').value = c.enrich_minuto;
 
+  // Load enrich background preview
+  try {
+    const bgResp = await fetch('/api/enrich/bg');
+    if (bgResp.ok) {
+      const blob = await bgResp.blob();
+      document.getElementById('enrichBgPreview').src = URL.createObjectURL(blob);
+      document.getElementById('enrichBgPreview').style.display = '';
+      document.getElementById('enrichBgPlaceholder').style.display = 'none';
+    }
+  } catch (e) {}
+
   // Count pending enrich lives
   try {
     const livesData = await fetchJson('/api/lives');
     const genericas = (livesData.lives || []).filter(l =>
-      (l.titulo || '').trim().toUpperCase() === 'INEMA' &&
-      l.observacoes !== 'enriquecida' &&
-      !(l.video_id || '').startsWith('import_')
+      !(l.video_id || '').startsWith('import_') &&
+      (
+        ((l.titulo || '').trim().toUpperCase() === 'INEMA' && l.observacoes !== 'enriquecida') ||
+        l.observacoes === 'refazer_enrich'
+      )
     );
     document.getElementById('enrichPendingCount').textContent = genericas.length;
   } catch (e) {}
