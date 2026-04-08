@@ -35,6 +35,23 @@ CREATE TABLE IF NOT EXISTS lives (
     data_corte TEXT NOT NULL DEFAULT ''
 );
 
+CREATE TABLE IF NOT EXISTS tiktok_channels (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    handle TEXT NOT NULL,
+    nome TEXT NOT NULL DEFAULT '',
+    ativo INTEGER NOT NULL DEFAULT 1,
+    data_desde TEXT NOT NULL DEFAULT '',
+    max_por_scan INTEGER NOT NULL DEFAULT 2,
+    ultimo_scan TEXT NOT NULL DEFAULT '',
+    total_baixados INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS tiktok_downloaded (
+    tiktok_id TEXT PRIMARY KEY,
+    channel_handle TEXT NOT NULL DEFAULT '',
+    downloaded_at TEXT NOT NULL DEFAULT ''
+);
+
 CREATE TABLE IF NOT EXISTS publicados (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     clip_video_id TEXT NOT NULL DEFAULT '',
@@ -271,6 +288,64 @@ def cleanup_publicados():
         'total_removed': total_before - total_after,
         'remaining': total_after
     }
+
+
+# --------------- TIKTOK CHANNELS ---------------
+
+def get_tiktok_channels():
+    """Get all TikTok channels."""
+    db = get_db()
+    rows = db.execute('SELECT * FROM tiktok_channels ORDER BY id').fetchall()
+    return [dict(r) for r in rows]
+
+
+def add_tiktok_channel(handle, nome='', ativo=1, data_desde='', max_por_scan=2):
+    """Add a TikTok channel. Returns the new row id."""
+    db = get_db()
+    cursor = db.execute(
+        'INSERT INTO tiktok_channels (handle, nome, ativo, data_desde, max_por_scan) VALUES (?, ?, ?, ?, ?)',
+        (handle, nome, ativo, data_desde, max_por_scan)
+    )
+    db.commit()
+    return cursor.lastrowid
+
+
+def update_tiktok_channel(channel_id, **fields):
+    """Update specific fields of a TikTok channel."""
+    if not fields:
+        return
+    db = get_db()
+    sets = ', '.join(f'{k}=?' for k in fields)
+    vals = list(fields.values()) + [channel_id]
+    db.execute(f'UPDATE tiktok_channels SET {sets} WHERE id=?', vals)
+    db.commit()
+
+
+def delete_tiktok_channel(channel_id):
+    """Delete a TikTok channel."""
+    db = get_db()
+    db.execute('DELETE FROM tiktok_channels WHERE id=?', (channel_id,))
+    db.commit()
+
+
+# --------------- TIKTOK DOWNLOADED ---------------
+
+def is_tiktok_downloaded(tiktok_id):
+    """Check if a TikTok video was already downloaded."""
+    db = get_db()
+    row = db.execute('SELECT 1 FROM tiktok_downloaded WHERE tiktok_id=?', (tiktok_id,)).fetchone()
+    return row is not None
+
+
+def mark_tiktok_downloaded(tiktok_id, channel_handle=''):
+    """Mark a TikTok video as downloaded."""
+    db = get_db()
+    from datetime import datetime
+    db.execute(
+        'INSERT OR IGNORE INTO tiktok_downloaded (tiktok_id, channel_handle, downloaded_at) VALUES (?, ?, ?)',
+        (tiktok_id, channel_handle, datetime.now().strftime('%Y-%m-%d %H:%M'))
+    )
+    db.commit()
 
 
 # --------------- Raw table access (for sheet editor UI) ---------------

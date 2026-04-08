@@ -599,6 +599,12 @@ function render() {
           <div class="stat"><div class="val" style="color:var(--green)">${db.imports_pub || 0}</div><div class="lbl">Publicados</div></div>
           <div class="stat"><div class="val" style="color:${(db.imports_erro||0)>0?'var(--red)':'var(--muted)'}">${db.imports_erro || 0}</div><div class="lbl">Erros</div></div>
         </div>
+        <div class="stats" style="grid-template-columns: repeat(4, 1fr);margin-bottom:8px;border-top:1px solid rgba(244,114,182,0.3);padding-top:4px">
+          <div class="stat"><div class="val" style="color:#f472b6">${db.tiktok_total || 0}</div><div class="lbl">TikTok</div></div>
+          <div class="stat"><div class="val" style="color:var(--yellow)">${db.tiktok_pend || 0}</div><div class="lbl">Pendentes</div></div>
+          <div class="stat"><div class="val" style="color:var(--green)">${db.tiktok_pub || 0}</div><div class="lbl">Publicados</div></div>
+          <div class="stat"><div class="val" style="color:${(db.tiktok_erro||0)>0?'var(--red)':'var(--muted)'}">${db.tiktok_erro || 0}</div><div class="lbl">Erros</div></div>
+        </div>
 
         <!-- Grafico pub -->
         ${db.pub_history ? `<div style="background:rgba(255,255,255,0.03);border-radius:6px;padding:6px 8px;margin-bottom:8px">

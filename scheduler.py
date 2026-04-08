@@ -1258,6 +1258,28 @@ def main():
             if not enrich_match and last_executed.get('enrich'):
                 last_executed['enrich'] = None
 
+            # --- TikTok Scanner ---
+            tiktok_paused = config.get('pipeline_tiktok_paused', 'false') == 'true'
+            tiktok_auto = config.get('tiktok_auto', 'false') == 'true'
+            tiktok_horarios = config.get('tiktok_horarios', '')
+            tiktok_match = get_matching_schedule(tiktok_horarios)
+
+            if not tiktok_paused and tiktok_auto and tiktok_match:
+                if last_executed.get('tiktok') != tiktok_match:
+                    last_executed['tiktok'] = tiktok_match
+                    log(f'==> TikTok scan! (agendado: {tiktok_match})')
+                    try:
+                        import tiktok_scanner
+                        results = tiktok_scanner.process_all_channels(config)
+                        total = sum(r.get('downloaded', 0) for r in results)
+                        if total:
+                            log(f'==> TikTok: {total} video(s) baixado(s)')
+                    except Exception as e:
+                        log(f'ERRO no tiktok_scanner: {e}')
+
+            if not tiktok_match and last_executed.get('tiktok'):
+                last_executed['tiktok'] = None
+
             # --- Import worker (verifica a cada hora ou se import_auto=true) ---
             now_hm = datetime.now().strftime('%H:%M')
             import_auto = config.get('import_auto', 'false') == 'true'

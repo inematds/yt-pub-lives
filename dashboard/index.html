@@ -705,7 +705,7 @@
 
 <div class="container">
   <header>
-    <h1><span>INEMA</span> Lives & Clips <small style="font-size:0.5em;color:var(--muted)">- <span id="instanceName"></span> <a href="#" onclick="openModal('modalChangelog');return false" style="color:var(--accent);text-decoration:none" title="Ver changelog">v3.20.25</a></small>
+    <h1><span>INEMA</span> Lives & Clips <small style="font-size:0.5em;color:var(--muted)">- <span id="instanceName"></span> <a href="#" onclick="openModal('modalChangelog');return false" style="color:var(--accent);text-decoration:none" title="Ver changelog">v3.21.25</a></small>
       <span id="headerCanais" style="display:block;font-size:0.4em;font-weight:normal;margin-top:4px"></span>
     </h1>
     <div class="header-actions">
@@ -835,6 +835,25 @@
         <div class="value" style="color:var(--muted);font-size:0.85em" id="statImportMotivoVal">-</div>
       </div>
     </div>
+    <!-- Linha 4: TikTok -->
+    <div class="stats-row">
+      <div class="stat-card" style="border-top:2px solid #f472b6">
+        <div class="label" style="color:#f472b6">TikTok Baixados</div>
+        <div class="value" style="color:#f472b6" id="statTiktokBaixados">-</div>
+      </div>
+      <div class="stat-card" style="border-top:2px solid #f472b6">
+        <div class="label" style="color:#f472b6">TK Publicados</div>
+        <div class="value green" id="statTiktokPub">-</div>
+      </div>
+      <div class="stat-card" style="border-top:2px solid #f472b6">
+        <div class="label" style="color:#f472b6">TK Pendentes</div>
+        <div class="value yellow" id="statTiktokPend">-</div>
+      </div>
+      <div class="stat-card" style="border-top:2px solid #f472b6">
+        <div class="label" style="color:#f472b6">TK Erros</div>
+        <div class="value" style="color:#ef4444" id="statTiktokErro">-</div>
+      </div>
+    </div>
   </div>
 
   <!-- Schedule Info -->
@@ -844,6 +863,9 @@
     <span style="color:var(--border)">|</span>
     <span class="health-label">Proxima pub:</span>
     <span id="nextPub" style="color:var(--green)">-</span>
+    <span style="color:var(--border)">|</span>
+    <span class="health-label" style="color:#f472b6">TikTok:</span>
+    <span id="tiktokInfoBar" style="color:#f472b6;font-size:0.82em">-</span>
   </div>
 
   <!-- Scheduler Status -->
@@ -867,6 +889,7 @@
         <button class="config-tab" onclick="showConfigTab('planilha', this)">Planilha</button>
         <button class="config-tab" onclick="showConfigTab('imports', this)">Imports</button>
         <button class="config-tab" onclick="showConfigTab('enrich', this)">Enrich Lives</button>
+        <button class="config-tab" onclick="showConfigTab('tiktok', this)">TikTok</button>
       </div>
       <button onclick="saveActiveTab(this)" id="btnSaveTop" style="padding:6px 20px;">Salvar</button>
     </div>
@@ -1665,6 +1688,86 @@
           <button onclick="enrichRunNow(this)" style="background:var(--accent);">Enriquecer Agora</button>
           <span id="enrichActionMsg" style="color:var(--muted);font-size:0.82em;margin-left:8px;"></span>
         </div>
+        <div style="margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button onclick="enrichFromUrl(this)" style="background:#a78bfa;white-space:nowrap">Importar e Enriquecer</button>
+          <input type="text" id="enrichUrlInput" placeholder="https://www.youtube.com/watch?v=..." style="flex:1;min-width:280px;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:0.85em">
+        </div>
+        <span id="enrichUrlMsg" style="color:var(--muted);font-size:0.78em;margin-top:4px;display:block"></span>
+      </div>
+    </div>
+
+    <!-- Tab: TikTok -->
+    <div class="config-tab-content" id="cfgTab_tiktok">
+      <div class="config-section">
+        <h3>TikTok Scanner</h3>
+        <p style="color:var(--muted);font-size:0.82em;margin-bottom:12px">Importa videos de canais TikTok automaticamente para a fila de imports.</p>
+        <div class="config-grid" style="grid-template-columns: 1fr 1fr;">
+          <div class="config-field">
+            <label>Scan automatico</label>
+            <select id="cfgTiktokAuto">
+              <option value="false">Nao</option>
+              <option value="true">Sim</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="config-section">
+        <h3>Horarios de Scan</h3>
+        <div class="hour-picker-header">
+          <label>Selecione os horarios (clique para ativar/desativar)</label>
+          <div class="hour-picker-actions">
+            <button onclick="hourPickerSelectAll('tiktok')">Todas</button>
+            <button onclick="hourPickerClearAll('tiktok')">Limpar</button>
+          </div>
+        </div>
+        <div class="hour-picker" id="tiktokHourPicker"></div>
+        <div class="hour-summary" id="tiktokSummary"></div>
+        <div style="margin-top:8px;display:flex;align-items:center;gap:8px;">
+          <label style="font-size:0.85em;color:var(--muted)">Minuto exato:</label>
+          <input type="number" id="cfgTiktokMinuto" min="0" max="59" value="0" style="width:60px">
+        </div>
+      </div>
+
+      <div class="config-section">
+        <h3>Canais Cadastrados</h3>
+        <table style="width:100%;font-size:0.82em;border-collapse:collapse" id="tiktokChannelsTable">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border);text-align:left">
+              <th style="padding:6px">Handle</th>
+              <th style="padding:6px">Nome</th>
+              <th style="padding:6px">Ativo</th>
+              <th style="padding:6px">Desde</th>
+              <th style="padding:6px">Max/scan</th>
+              <th style="padding:6px">Ultimo scan</th>
+              <th style="padding:6px">Baixados</th>
+              <th style="padding:6px">Acao</th>
+            </tr>
+          </thead>
+          <tbody id="tiktokChannelsBody">
+            <tr><td colspan="8" style="padding:12px;color:var(--muted)">Carregando...</td></tr>
+          </tbody>
+        </table>
+        <div style="margin-top:12px;display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+          <div><label style="font-size:0.78em;color:var(--muted)">Handle</label><br><input type="text" id="tiktokNewHandle" placeholder="@usuario" style="width:140px;padding:4px 8px;font-size:0.85em;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text)"></div>
+          <div><label style="font-size:0.78em;color:var(--muted)">Nome</label><br><input type="text" id="tiktokNewNome" placeholder="Nome amigavel" style="width:140px;padding:4px 8px;font-size:0.85em;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text)"></div>
+          <div><label style="font-size:0.78em;color:var(--muted)">Desde</label><br><input type="date" id="tiktokNewDesde" style="width:140px;padding:4px 8px;font-size:0.85em;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text)"></div>
+          <div><label style="font-size:0.78em;color:var(--muted)">Max/scan</label><br><input type="number" id="tiktokNewMax" value="2" min="1" max="20" style="width:60px;padding:4px 8px;font-size:0.85em;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text)"></div>
+          <button onclick="tiktokAddChannel()" style="background:var(--accent);padding:5px 14px">Adicionar</button>
+        </div>
+      </div>
+
+      <div class="config-section">
+        <h3>Acoes</h3>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button onclick="tiktokScanNow(this)" style="background:#a78bfa">Escanear Agora</button>
+          <span id="tiktokScanMsg" style="color:var(--muted);font-size:0.82em"></span>
+        </div>
+        <div style="margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button onclick="tiktokDownloadUrl(this)" style="background:#f472b6;white-space:nowrap">Baixar Video</button>
+          <input type="text" id="tiktokUrlInput" placeholder="https://www.tiktok.com/@user/video/123..." style="flex:1;min-width:280px;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:0.85em">
+        </div>
+        <span id="tiktokUrlMsg" style="color:var(--muted);font-size:0.78em;margin-top:4px;display:block"></span>
       </div>
     </div>
 
@@ -1757,6 +1860,7 @@
         <option value="">Todas</option>
         <option value="live">Apenas Lives</option>
         <option value="import">Apenas Imports</option>
+        <option value="tiktok">Apenas TikTok</option>
       </select>
       <span class="toolbar-label">Ordem:</span>
       <select id="pubOrder" onchange="clipsPage=1;filterPubs()">
@@ -1889,6 +1993,7 @@ function saveActiveTab(btn) {
   else if (_activeConfigTab === 'planilha') saveSheet(btn);
   else if (_activeConfigTab === 'imports') saveImports(btn);
   else if (_activeConfigTab === 'enrich') saveEnrich(btn);
+  else if (_activeConfigTab === 'tiktok') saveTiktok(btn);
 }
 
 function toggleImportHorarios(val) {
@@ -1933,6 +2038,129 @@ async function saveEnrich(btn) {
   }
 }
 
+// --- TikTok ---
+async function saveTiktok(btn) {
+  const data = {
+    tiktok_auto: document.getElementById('cfgTiktokAuto').value,
+    tiktok_horarios: hoursToString('tiktok'),
+    tiktok_minuto: document.getElementById('cfgTiktokMinuto').value,
+  };
+  if (btn) { btn.textContent = 'Salvando...'; btn.disabled = true; }
+  try {
+    await fetchJson('/api/config', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
+    if (btn) { btn.textContent = 'Salvo!'; setTimeout(() => { btn.textContent = 'Salvar'; btn.disabled = false; }, 1500); }
+  } catch (e) {
+    if (btn) { btn.textContent = 'Erro'; btn.disabled = false; }
+  }
+}
+
+async function loadTiktokChannels() {
+  try {
+    const resp = await fetchJson('/api/tiktok/channels');
+    const channels = resp.channels || [];
+    const tbody = document.getElementById('tiktokChannelsBody');
+    if (!channels.length) {
+      tbody.innerHTML = '<tr><td colspan="8" style="padding:12px;color:var(--muted)">Nenhum canal cadastrado</td></tr>';
+      return;
+    }
+    tbody.innerHTML = channels.map(c => `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:6px">${c.handle}</td>
+      <td style="padding:6px">${c.nome || '-'}</td>
+      <td style="padding:6px"><select onchange="tiktokUpdate(${c.id}, {ativo: parseInt(this.value)})" style="font-size:0.85em;padding:2px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:4px">
+        <option value="1" ${c.ativo ? 'selected' : ''}>Sim</option>
+        <option value="0" ${!c.ativo ? 'selected' : ''}>Nao</option>
+      </select></td>
+      <td style="padding:6px"><input type="date" value="${c.data_desde || ''}" style="width:120px;padding:2px;font-size:0.85em;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:4px" onchange="tiktokUpdate(${c.id}, {data_desde: this.value})"></td>
+      <td style="padding:6px"><input type="number" value="${c.max_por_scan}" min="1" max="20" style="width:45px;padding:2px;font-size:0.85em;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:4px" onchange="tiktokUpdate(${c.id}, {max_por_scan: parseInt(this.value)})"></td>
+      <td style="padding:6px;font-size:0.78em">${c.ultimo_scan || '-'}</td>
+      <td style="padding:6px">${c.total_baixados}</td>
+      <td style="padding:6px"><span style="cursor:pointer;color:#ef4444" onclick="tiktokDelete(${c.id})" title="Remover canal">&#128465;</span></td>
+    </tr>`).join('');
+  } catch (e) {}
+}
+
+async function tiktokAddChannel() {
+  const handle = document.getElementById('tiktokNewHandle').value.trim();
+  if (!handle) return;
+  await fetchJson('/api/tiktok/channels', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      handle,
+      nome: document.getElementById('tiktokNewNome').value.trim(),
+      data_desde: document.getElementById('tiktokNewDesde').value,
+      max_por_scan: parseInt(document.getElementById('tiktokNewMax').value) || 2,
+    })
+  });
+  document.getElementById('tiktokNewHandle').value = '';
+  document.getElementById('tiktokNewNome').value = '';
+  loadTiktokChannels();
+}
+
+async function tiktokUpdate(id, fields) {
+  await fetchJson('/api/tiktok/channels/update', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ id, ...fields })
+  });
+}
+
+async function tiktokDelete(id) {
+  if (!confirm('Remover este canal TikTok?')) return;
+  await fetchJson('/api/tiktok/channels/delete', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ id })
+  });
+  loadTiktokChannels();
+}
+
+async function tiktokDownloadUrl(btn) {
+  const input = document.getElementById('tiktokUrlInput');
+  const msg = document.getElementById('tiktokUrlMsg');
+  const url = input.value.trim();
+  if (!url) { msg.textContent = 'Cole o link do video TikTok'; msg.style.color = 'var(--red)'; return; }
+  if (btn) { btn.textContent = 'Baixando...'; btn.disabled = true; }
+  msg.textContent = 'Baixando video do TikTok...';
+  msg.style.color = 'var(--muted)';
+  try {
+    const resp = await fetchJson('/api/tiktok/download-url', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ url })
+    });
+    if (resp.ok) {
+      msg.textContent = `OK! ${resp.title || ''} (${resp.downloaded} video(s))`;
+      msg.style.color = 'var(--green)';
+      input.value = '';
+      loadAll();
+    } else {
+      msg.textContent = 'Erro: ' + (resp.error || 'desconhecido');
+      msg.style.color = 'var(--red)';
+    }
+  } catch (e) {
+    msg.textContent = 'Erro: ' + e;
+    msg.style.color = 'var(--red)';
+  } finally {
+    if (btn) { btn.textContent = 'Baixar Video'; btn.disabled = false; }
+  }
+}
+
+async function tiktokScanNow(btn) {
+  const msg = document.getElementById('tiktokScanMsg');
+  if (btn) { btn.textContent = 'Escaneando...'; btn.disabled = true; }
+  msg.textContent = '';
+  try {
+    const resp = await fetchJson('/api/tiktok/scan', { method: 'POST', body: '{}' });
+    const n = resp.total_downloaded || 0;
+    msg.textContent = n > 0 ? `${n} video(s) baixado(s)!` : 'Nenhum video novo encontrado';
+    msg.style.color = n > 0 ? 'var(--green)' : 'var(--muted)';
+    loadTiktokChannels();
+  } catch (e) {
+    msg.textContent = 'Erro: ' + e;
+    msg.style.color = 'var(--red)';
+  } finally {
+    if (btn) { btn.textContent = 'Escanear Agora'; btn.disabled = false; }
+  }
+}
+
 async function enrichUploadBg(input) {
   const file = input.files[0];
   if (!file) return;
@@ -1963,6 +2191,38 @@ async function enrichUploadBg(input) {
   } catch (e) {
     msg.textContent = 'Erro: ' + e;
     msg.style.color = 'var(--red)';
+  }
+}
+
+async function enrichFromUrl(btn) {
+  const input = document.getElementById('enrichUrlInput');
+  const msg = document.getElementById('enrichUrlMsg');
+  const url = input.value.trim();
+  if (!url) { msg.textContent = 'Cole o link da live'; msg.style.color = 'var(--red)'; return; }
+
+  if (btn) { btn.textContent = 'Processando...'; btn.disabled = true; }
+  msg.textContent = 'Importando e enriquecendo (pode levar alguns minutos)...';
+  msg.style.color = 'var(--muted)';
+  try {
+    const resp = await fetchJson('/api/enrich/url', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ url })
+    });
+    if (resp.ok) {
+      msg.textContent = `OK! ${resp.title || ''} (${resp.video_id})`;
+      msg.style.color = 'var(--green)';
+      input.value = '';
+      loadAll();
+    } else {
+      msg.textContent = 'Erro: ' + (resp.error || 'desconhecido');
+      msg.style.color = 'var(--red)';
+    }
+  } catch (e) {
+    msg.textContent = 'Erro: ' + e;
+    msg.style.color = 'var(--red)';
+  } finally {
+    if (btn) { btn.textContent = 'Importar e Enriquecer'; btn.disabled = false; }
   }
 }
 
@@ -2397,7 +2657,7 @@ function highlightPreset(name) {
 }
 
 // --- Hour Picker ---
-const hourState = { pub: new Set(), corte: new Set(), import: new Set(), enrich: new Set() };
+const hourState = { pub: new Set(), corte: new Set(), import: new Set(), enrich: new Set(), tiktok: new Set() };
 
 function buildHourPicker(name) {
   const container = document.getElementById(name + 'HourPicker');
@@ -2439,6 +2699,7 @@ document.getElementById('cfgCorteMinuto').addEventListener('input', () => update
 document.getElementById('cfgPubMinuto').addEventListener('input', () => updateHourSummary('pub'));
 document.getElementById('cfgImportMinuto').addEventListener('input', () => updateHourSummary('import'));
 document.getElementById('cfgEnrichMinuto').addEventListener('input', () => updateHourSummary('enrich'));
+document.getElementById('cfgTiktokMinuto').addEventListener('input', () => updateHourSummary('tiktok'));
 
 function hourPickerSelectAll(name) {
   for (let h = 0; h < 24; h++) hourState[name].add(h);
@@ -2610,6 +2871,21 @@ async function loadStats() {
   } else {
     motivoCard.style.display = 'none';
   }
+
+  // TikTok stats
+  document.getElementById('statTiktokBaixados').textContent = data.tiktok_total || 0;
+  document.getElementById('statTiktokPub').textContent = data.tiktok_pub || 0;
+  document.getElementById('statTiktokPend').textContent = data.tiktok_pend || 0;
+  document.getElementById('statTiktokErro').textContent = data.tiktok_erro || 0;
+
+  // TikTok info bar
+  try {
+    const tkResp = await fetchJson('/api/tiktok/channels');
+    const channels = tkResp.channels || [];
+    const ativos = channels.filter(c => c.ativo).length;
+    const lastScan = channels.map(c => c.ultimo_scan || '').filter(Boolean).sort().pop() || 'nunca';
+    document.getElementById('tiktokInfoBar').textContent = `${ativos} canal(is) | scan: ${lastScan}`;
+  } catch (e) {}
 }
 
 function showImportFilter(status) {
@@ -2888,7 +3164,9 @@ function filterPubs() {
     }
     if (privacy && p._status === 'publicado' && p.privacy !== privacy) return false;
     const isImport = (p.live_video_id || '').startsWith('import_');
-    if (origem === 'import' && !isImport) return false;
+    const isTiktok = isImport && (p.live_titulo || '').startsWith('TikTok @');
+    if (origem === 'tiktok' && !isTiktok) return false;
+    if (origem === 'import' && (!isImport || isTiktok)) return false;
     if (origem === 'live' && isImport) return false;
     return true;
   });
@@ -3138,6 +3416,13 @@ async function loadConfig() {
     );
     document.getElementById('enrichPendingCount').textContent = genericas.length;
   } catch (e) {}
+
+  // TikTok
+  if (c.tiktok_auto) document.getElementById('cfgTiktokAuto').value = c.tiktok_auto;
+  hourState.tiktok = stringToHours(c.tiktok_horarios || '');
+  buildHourPicker('tiktok');
+  if (c.tiktok_minuto) document.getElementById('cfgTiktokMinuto').value = c.tiktok_minuto;
+  loadTiktokChannels();
 
   // Prompts
   try {
@@ -3812,6 +4097,15 @@ loadAll();
       <button onclick="closeModal('modalChangelog')" style="background:none;border:none;color:var(--muted);font-size:1.2em;cursor:pointer">X</button>
     </div>
     <div class="modal-body" style="padding:16px;overflow-y:auto;font-size:0.85em;line-height:1.8">
+      <h3 style="color:var(--accent);margin-bottom:8px">v3.21.25</h3>
+      <p style="color:var(--muted);margin-bottom:4px"><strong>Features:</strong></p>
+      <ul style="margin:0 0 16px 20px;color:var(--text)">
+        <li>TikTok Scanner: importa videos de canais TikTok automaticamente para fila de imports</li>
+        <li>Nova aba "TikTok" na Config: cadastro de canais, toggle ativo/inativo, data desde, max por scan</li>
+        <li>Horarios configuraveis para scan automatico</li>
+        <li>Botao "Escanear Agora" para scan manual</li>
+      </ul>
+
       <h3 style="color:var(--accent);margin-bottom:8px">v3.20.25</h3>
       <p style="color:var(--muted);margin-bottom:4px"><strong>Features:</strong></p>
       <ul style="margin:0 0 16px 20px;color:var(--text)">

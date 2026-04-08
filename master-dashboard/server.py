@@ -180,6 +180,24 @@ def get_db_stats(instance_path):
         imports_clips_total = cur.fetchone()[0]
         imports_pend = max(0, imports_clips_total - imports_pub - imports_erro)
 
+        # TikTok stats (subset of imports where titulo starts with 'TikTok @')
+        cur.execute("SELECT video_id FROM lives WHERE video_id LIKE 'import_%' AND titulo LIKE 'TikTok @%'")
+        tiktok_ids = {r[0] for r in cur.fetchall()}
+        tiktok_total = len(tiktok_ids)
+        tiktok_pub = 0
+        tiktok_erro = 0
+        if tiktok_ids:
+            placeholders = ','.join(['?'] * len(tiktok_ids))
+            cur.execute(f"SELECT clip_video_id FROM publicados WHERE live_video_id IN ({placeholders})", list(tiktok_ids))
+            for r in cur.fetchall():
+                if r[0] in ('erro_upload', 'publicando', ''):
+                    tiktok_erro += 1
+                else:
+                    tiktok_pub += 1
+        cur.execute("SELECT COALESCE(SUM(CAST(qtd_clips AS INTEGER)),0) FROM lives WHERE video_id LIKE 'import_%' AND titulo LIKE 'TikTok @%'")
+        tiktok_clips_total = cur.fetchone()[0]
+        tiktok_pend = max(0, tiktok_clips_total - tiktok_pub - tiktok_erro)
+
         # Cortados ultimas 24h
         cur.execute("SELECT COUNT(*) FROM lives WHERE data_corte >= ?", (since_24h,))
         cortados_hoje = cur.fetchone()[0]
@@ -267,6 +285,10 @@ def get_db_stats(instance_path):
             'imports_pub': imports_pub,
             'imports_pend': imports_pend,
             'imports_erro': imports_erro,
+            'tiktok_total': tiktok_total,
+            'tiktok_pub': tiktok_pub,
+            'tiktok_pend': tiktok_pend,
+            'tiktok_erro': tiktok_erro,
             'proximo_pub': next_time(pub_horarios) if not pub_paused else 'pausado',
             'proximo_corte': next_time(corte_horarios) if corte_auto and not corte_paused else ('pausado' if corte_paused else 'desligado'),
             'pub_previsao_dia': pub_previsao_dia,

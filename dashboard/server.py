@@ -141,6 +141,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.handle_sheet_read(sheet_name)
         elif path == '/api/enrich/bg':
             self.handle_enrich_bg_get()
+        elif path == '/api/tiktok/channels':
+            self.handle_tiktok_channels_get()
         elif path == '/api/health':
             self.handle_api_health()
         elif path.startswith('/clips/'):
@@ -209,6 +211,18 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.handle_enrich_upload_bg(data)
         elif post_path == '/api/enrich/mark':
             self.handle_enrich_mark(data)
+        elif post_path == '/api/tiktok/channels':
+            self.handle_tiktok_channels_post(data)
+        elif post_path == '/api/tiktok/channels/update':
+            self.handle_tiktok_channels_update(data)
+        elif post_path == '/api/tiktok/channels/delete':
+            self.handle_tiktok_channels_delete(data)
+        elif post_path == '/api/tiktok/scan':
+            self.handle_tiktok_scan()
+        elif post_path == '/api/tiktok/download-url':
+            self.handle_tiktok_download_url(data)
+        elif post_path == '/api/enrich/url':
+            self.handle_enrich_url(data)
         else:
             self.send_json(404, {'error': 'not found'})
 
@@ -536,6 +550,183 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         db.update_live(video_id, observacoes='refazer_enrich')
         self.send_json(200, {'ok': True, 'video_id': video_id})
 
+    def handle_enrich_url(self, data):
+        """Import a live from URL and enrich it (transcript → title/desc → thumb → cuts)."""
+        import re
+        url = data.get('url', '').strip()
+        if not url:
+            self.send_json(400, {'error': 'url required'})
+            return
+
+        # Extract video ID from various YouTube URL formats
+        vid = None
+        m = re.search(r'(?:v=|youtu\.be/|shorts/)([a-zA-Z0-9_-]{11})', url)
+        if m:
+            vid = m.group(1)
+        if not vid:
+            self.send_json(400, {'error': 'URL invalida — nao encontrei video ID'})
+            return
+
+        try:
+            # Get video details from YouTube API
+            details = get_video_details([vid])
+            items = details.get('items', [])
+            if not items:
+                self.send_json(404, {'error': f'Video {vid} nao encontrado no YouTube'})
+                return
+
+            item = items[0]
+            snippet = item.get('snippet', {})
+            title = snippet.get('title', '')
+            pub_date = snippet.get('publishedAt', '')[:10]
+
+            # Parse duration
+            dur_str = item.get('contentDetails', {}).get('duration', '')
+            dur_min = str(parse_duration_minutes(dur_str))
+
+            # Add to database if not exists
+            existing = db.get_live(vid)
+            if not existing:
+                today = __import__('datetime').date.today().isoformat()
+                db.add_lives([{
+                    'video_id': vid,
+                    'titulo': title,
+                    'data_live': pub_date,
+                    'duracao_min': dur_min,
+                    'url': f'https://www.youtube.com/watch?v={vid}',
+                    'status_transcricao': 'pendente',
+                    'status_cortes': 'pendente',
+                    'qtd_clips': '0',
+                    'clips_publicados': '0',
+                    'clips_pendentes': '0',
+                    'data_sync': today,
+                    'observacoes': 'refazer_enrich',
+                }])
+            else:
+                db.update_live(vid, observacoes='refazer_enrich')
+
+            # Run enrich (which runs cuts first if needed)
+            sys.path.insert(0, PROJECT_ROOT)
+            from scheduler import process_enrich, load_config
+            config = load_config()
+            result = process_enrich(config)
+
+            # Get updated title
+            live = db.get_live(vid)
+            new_title = live.get('titulo', title) if live else title
+
+            self.send_json(200, {
+                'ok': True,
+                'video_id': vid,
+                'title': new_title,
+                'enriched': result.get('enriched', 0),
+                'errors': result.get('errors', 0),
+            })
+        except Exception as e:
+            self.send_json(500, {'error': str(e)})
+
+    def handle_tiktok_channels_get(self):
+        channels = db.get_tiktok_channels()
+        self.send_json(200, {'channels': channels})
+
+    def handle_tiktok_channels_post(self, data):
+        handle = data.get('handle', '').strip()
+        if not handle:
+            self.send_json(400, {'error': 'handle required'})
+            return
+        row_id = db.add_tiktok_channel(
+            handle=handle,
+            nome=data.get('nome', ''),
+            ativo=int(data.get('ativo', 1)),
+            data_desde=data.get('data_desde', ''),
+            max_por_scan=int(data.get('max_por_scan', 2))
+        )
+        self.send_json(200, {'ok': True, 'id': row_id})
+
+    def handle_tiktok_channels_update(self, data):
+        channel_id = data.get('id')
+        if not channel_id:
+            self.send_json(400, {'error': 'id required'})
+            return
+        fields = {}
+        for k in ('handle', 'nome', 'data_desde'):
+            if k in data:
+                fields[k] = data[k]
+        for k in ('ativo', 'max_por_scan'):
+            if k in data:
+                fields[k] = int(data[k])
+        if fields:
+            db.update_tiktok_channel(channel_id, **fields)
+        self.send_json(200, {'ok': True})
+
+    def handle_tiktok_channels_delete(self, data):
+        channel_id = data.get('id')
+        if not channel_id:
+            self.send_json(400, {'error': 'id required'})
+            return
+        db.delete_tiktok_channel(channel_id)
+        self.send_json(200, {'ok': True})
+
+    def handle_tiktok_scan(self):
+        try:
+            sys.path.insert(0, PROJECT_ROOT)
+            import tiktok_scanner
+            results = tiktok_scanner.process_all_channels()
+            total = sum(r.get('downloaded', 0) for r in results)
+            self.send_json(200, {'ok': True, 'total_downloaded': total, 'channels': results})
+        except Exception as e:
+            self.send_json(500, {'error': str(e)})
+
+    def handle_tiktok_download_url(self, data):
+        """Download a single TikTok video by URL and process as import."""
+        url = data.get('url', '').strip()
+        if not url:
+            self.send_json(400, {'error': 'url required'})
+            return
+        try:
+            sys.path.insert(0, PROJECT_ROOT)
+            import tiktok_scanner
+            import import_worker
+
+            # Create a fake channel entry for download
+            channel = {'handle': 'manual', 'max_por_scan': 1}
+
+            # Get video info via yt-dlp
+            result = subprocess.run(
+                ['yt-dlp', '-j', '--no-warnings', url],
+                capture_output=True, text=True, timeout=120
+            )
+            if result.returncode != 0:
+                self.send_json(500, {'error': f'yt-dlp erro: {result.stderr[:200]}'})
+                return
+
+            info = json.loads(result.stdout)
+            vid_id = info.get('id', '')
+            title = info.get('title', '')
+
+            videos = [{
+                'id': vid_id,
+                'title': title,
+                'url': url,
+                'upload_date': info.get('upload_date', ''),
+                'duration': info.get('duration', 0),
+            }]
+
+            dl_result = tiktok_scanner.download_videos(videos, channel)
+
+            # Process import immediately
+            if dl_result.get('downloaded', 0) > 0:
+                import_worker.process_imports()
+
+            self.send_json(200, {
+                'ok': True,
+                'video_id': vid_id,
+                'title': title,
+                'downloaded': dl_result.get('downloaded', 0),
+            })
+        except Exception as e:
+            self.send_json(500, {'error': str(e)})
+
     def handle_enrich_bg_get(self):
         """Serve the enrich background image."""
         config_dir = os.environ.get('GWS_CONFIG_DIR', os.path.join(PROJECT_ROOT, 'config'))
@@ -768,10 +959,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         imports_clips_erro = 0
 
         import_ids = set()
+        tiktok_ids = set()
 
         for live in lives_list:
             vid = live.get('video_id', '')
             is_import = vid.startswith('import_')
+            is_tiktok = is_import and (live.get('titulo', '') or '').startswith('TikTok @')
             status = live.get('status_cortes', '')
             qtd = int(live.get('qtd_clips', '0') or '0')
             pub = int(live.get('clips_publicados', '0') or '0')
@@ -779,6 +972,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             if is_import:
                 imports_total += 1
                 import_ids.add(vid)
+                if is_tiktok:
+                    tiktok_ids.add(vid)
             else:
                 total_lives += 1
                 total_clips += qtd
@@ -836,6 +1031,24 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         elif imports_total == 0:
             import_motivo = 'fila vazia'
 
+        # TikTok stats (subset of imports)
+        tiktok_total = len(tiktok_ids)
+        tiktok_pub = 0
+        tiktok_erro = 0
+        for pub in pub_list:
+            live_vid = pub.get('live_video_id', '')
+            if live_vid in tiktok_ids:
+                vid_status = pub.get('clip_video_id', '')
+                if vid_status in ('erro_upload', 'publicando', ''):
+                    tiktok_erro += 1
+                else:
+                    tiktok_pub += 1
+        tiktok_clips_total = sum(
+            int(l.get('qtd_clips', '0') or '0')
+            for l in lives_list if l.get('video_id', '') in tiktok_ids
+        )
+        tiktok_pend = max(0, tiktok_clips_total - tiktok_pub - tiktok_erro)
+
         self.send_json(200, {
             'instance_name': os.environ.get('INSTANCE_NAME', 'yt-pub-lives'),
             'total_lives': total_lives,
@@ -850,6 +1063,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             'imports_clips_pend': imports_clips_pend,
             'imports_clips_erro': imports_clips_erro,
             'import_motivo': import_motivo,
+            'tiktok_total': tiktok_total,
+            'tiktok_pub': tiktok_pub,
+            'tiktok_pend': tiktok_pend,
+            'tiktok_erro': tiktok_erro,
         })
 
     def handle_sync(self, data):

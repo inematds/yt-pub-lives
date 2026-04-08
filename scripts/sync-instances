@@ -22,6 +22,7 @@ FILES=(
     "scripts/yt-clip"
     "scripts/yt-publish"
     "scripts/setup-db"
+    "tiktok_scanner.py"
 )
 
 for target in "${TARGETS[@]}"; do
