@@ -4,7 +4,7 @@
 
 SOURCE="/home/nmaldaner/projetos/yt-pub-lives2"
 TARGETS=(
-    "/home/nmaldaner/projetos/yt-pub-lives"
+    "/home/nmaldaner/projetos/yt-pub-lives1"
     "/home/nmaldaner/projetos/yt-pub-lives3"
     "/home/nmaldaner/projetos/yt-pub-lives4"
     "/home/nmaldaner/projetos/yt-pub-lives5"

@@ -381,6 +381,104 @@ def clean_clips(only_fully_published=True):
 
 
 # ---------------------------------------------------------------------------
+# Distribuicao entre instancias
+# ---------------------------------------------------------------------------
+
+# Raiz onde ficam todas as instancias (ex: /home/nmaldaner/projetos/)
+_INSTANCES_BASE = os.path.dirname(PROJECT_ROOT)
+_INSTANCE_NAMES = [f'yt-pub-lives{i}' for i in range(1, 8)]
+
+# Pasta central de distribuicao (fora das instancias)
+DIST_IMPORTS_DIR = '/home/nmaldaner/projetos/yt-pub-lives/imports'
+
+
+def _collect_all_mp4s_flat(source_dir=None):
+    """
+    Coleta todos os MP4s dentro de source_dir recursivamente (exceto .hidden).
+    Retorna lista de caminhos absolutos ordenados.
+    """
+    src = source_dir or IMPORTS_DIR
+    found = []
+    for root, dirs, files in os.walk(src):
+        dirs[:] = sorted([d for d in dirs if not d.startswith('.')])
+        for f in sorted(files):
+            if f.lower().endswith('.mp4'):
+                found.append(os.path.join(root, f))
+    return found
+
+
+def distribute_imports(config=None):
+    """
+    Le MP4s de DIST_IMPORTS_DIR (/home/nmaldaner/projetos/yt-pub-lives/imports/)
+    e distribui round-robin para imports/dist_TIMESTAMP/ de cada uma das 7 instancias.
+    Cada instancia processa na sua hora (scheduler import_auto ou scan manual).
+    Retorna dict: { total, source, por_instancia: [{instancia, clips, ok}] }
+    """
+    if not os.path.isdir(DIST_IMPORTS_DIR):
+        os.makedirs(DIST_IMPORTS_DIR, exist_ok=True)
+        return {'total': 0, 'source': DIST_IMPORTS_DIR, 'por_instancia': []}
+
+    all_mp4s = _collect_all_mp4s_flat(DIST_IMPORTS_DIR)
+    if not all_mp4s:
+        log(f'distribute_imports: nenhum MP4 encontrado em {DIST_IMPORTS_DIR}')
+        return {'total': 0, 'source': DIST_IMPORTS_DIR, 'por_instancia': []}
+
+    # Filtra instancias que existem no disco
+    instances = [
+        os.path.join(_INSTANCES_BASE, name)
+        for name in _INSTANCE_NAMES
+        if os.path.isdir(os.path.join(_INSTANCES_BASE, name))
+    ]
+    n = len(instances)
+    log(f'distribute_imports: {len(all_mp4s)} MP4(s) -> {n} instancias')
+
+    # Round-robin: video i vai para instances[i % n]
+    buckets = [[] for _ in range(n)]
+    for i, mp4 in enumerate(all_mp4s):
+        buckets[i % n].append(mp4)
+
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    results = []
+
+    for inst_dir, bucket in zip(instances, buckets):
+        inst_name = os.path.basename(inst_dir)
+        if not bucket:
+            results.append({'instancia': inst_name, 'clips': 0, 'ok': True})
+            continue
+
+        dist_folder = os.path.join(inst_dir, 'imports', f'dist_{timestamp}')
+        os.makedirs(dist_folder, exist_ok=True)
+
+        moved = []
+        for src in bucket:
+            fname = os.path.basename(src)
+            dst = os.path.join(dist_folder, fname)
+            counter = 1
+            base, ext = os.path.splitext(fname)
+            while os.path.exists(dst):
+                dst = os.path.join(dist_folder, f'{base}_{counter}{ext}')
+                counter += 1
+            try:
+                shutil.move(src, dst)
+                moved.append(fname)
+                log(f'  -> {inst_name}: {fname}')
+            except Exception as e:
+                log(f'  ERRO ao mover {fname} para {inst_name}: {e}')
+
+        results.append({'instancia': inst_name, 'clips': len(moved), 'ok': True})
+
+    # Remove diretorios vazios que sobraram em imports/
+    for root, dirs, files in os.walk(IMPORTS_DIR, topdown=False):
+        if root != IMPORTS_DIR and not os.listdir(root):
+            try:
+                os.rmdir(root)
+            except OSError:
+                pass
+
+    return {'total': len(all_mp4s), 'source': DIST_IMPORTS_DIR, 'por_instancia': results}
+
+
+# ---------------------------------------------------------------------------
 # Execucao direta (teste / CLI)
 # ---------------------------------------------------------------------------
 
@@ -389,6 +487,9 @@ if __name__ == '__main__':
     if action == 'scan':
         results = process_imports()
         print(json.dumps(results, ensure_ascii=False, indent=2))
+    elif action == 'distribute':
+        results = distribute_imports()
+        print(json.dumps(results, ensure_ascii=False, indent=2))
     elif action == 'clean-imports':
         n = clean_imports()
         print(f'{n} itens removidos de imports/')
@@ -396,4 +497,4 @@ if __name__ == '__main__':
         n = clean_clips(only_fully_published='--all' not in sys.argv)
         print(f'{n} lives com clips limpos')
     else:
-        print(f'Uso: {sys.argv[0]} scan | clean-imports | clean-clips [--all]')
+        print(f'Uso: {sys.argv[0]} scan | distribute | clean-imports | clean-clips [--all]')

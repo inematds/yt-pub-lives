@@ -201,6 +201,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.handle_import_scan()
         elif post_path == '/api/import/clean':
             self.handle_import_clean(data)
+        elif post_path == '/api/enrich':
+            self.handle_enrich_run()
         else:
             self.send_json(404, {'error': 'not found'})
 
@@ -508,6 +510,17 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         except Exception as e:
             self.send_json(500, {'error': str(e)})
 
+    def handle_enrich_run(self):
+        """Run enrich process manually."""
+        try:
+            sys.path.insert(0, PROJECT_ROOT)
+            from scheduler import process_enrich, load_config
+            config = load_config()
+            result = process_enrich(config)
+            self.send_json(200, {'ok': True, **result})
+        except Exception as e:
+            self.send_json(500, {'error': str(e)})
+
     def handle_api_publicados(self, filter_live_id=None):
         publicados = db.get_publicados(filter_live_id)
 
@@ -670,7 +683,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     def handle_api_prompts_get(self):
         config_dir = os.environ.get('GWS_CONFIG_DIR', os.path.join(PROJECT_ROOT, 'config'))
         prompts = {}
-        for name in ('prompt_cortes', 'prompt_pub', 'prompt_thumb'):
+        for name in ('prompt_cortes', 'prompt_pub', 'prompt_thumb', 'prompt_enrich'):
             path = os.path.join(config_dir, f'{name}.txt')
             if os.path.exists(path):
                 with open(path) as f:
@@ -682,7 +695,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     def handle_api_prompts_save(self, data):
         config_dir = os.environ.get('GWS_CONFIG_DIR', os.path.join(PROJECT_ROOT, 'config'))
         saved = []
-        for name in ('prompt_cortes', 'prompt_pub', 'prompt_thumb'):
+        for name in ('prompt_cortes', 'prompt_pub', 'prompt_thumb', 'prompt_enrich'):
             if name in data:
                 path = os.path.join(config_dir, f'{name}.txt')
                 with open(path, 'w') as f:
@@ -694,36 +707,102 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         lives_list = db.get_lives()
         pub_list = db.get_publicados()
 
-        total_lives = len(lives_list)
-        total_publicados = len(pub_list)
-
-        # Count by status
+        total_lives = 0
+        total_publicados = 0
+        total_clips = 0
         pendentes = 0
         cortados = 0
         lives_erro = 0
-        for live in lives_list:
-            status = live.get('status_cortes', '')
-            if status == 'concluido':
-                cortados += 1
-            elif status == 'erro':
-                lives_erro += 1
-            else:
-                pendentes += 1
 
-        # Count clips with errors
+        # Import stats
+        imports_total = 0
+        imports_clips_pub = 0
+        imports_clips_pend = 0
+        imports_clips_erro = 0
+
+        import_ids = set()
+
+        for live in lives_list:
+            vid = live.get('video_id', '')
+            is_import = vid.startswith('import_')
+            status = live.get('status_cortes', '')
+            qtd = int(live.get('qtd_clips', '0') or '0')
+            pub = int(live.get('clips_publicados', '0') or '0')
+
+            if is_import:
+                imports_total += 1
+                import_ids.add(vid)
+            else:
+                total_lives += 1
+                total_clips += qtd
+                if status == 'concluido':
+                    cortados += 1
+                elif status == 'erro':
+                    lives_erro += 1
+                else:
+                    pendentes += 1
+
+        # Clips stats
         clips_erro = 0
         for pub in pub_list:
-            if pub.get('clip_video_id', '') in ('erro_upload', 'publicando', ''):
-                clips_erro += 1
+            vid_status = pub.get('clip_video_id', '')
+            live_vid = pub.get('live_video_id', '')
+            is_err = vid_status in ('erro_upload', 'publicando', '')
+            if live_vid in import_ids:
+                if is_err:
+                    imports_clips_erro += 1
+                else:
+                    imports_clips_pub += 1
+            else:
+                if is_err:
+                    clips_erro += 1
+                else:
+                    total_publicados += 1
+
+        # Clips pendentes de imports (no manifest mas nao no publicados)
+        pub_titles_by_live = {}
+        for pub in pub_list:
+            lid = pub.get('live_video_id', '')
+            if lid in import_ids:
+                pub_titles_by_live.setdefault(lid, set()).add(pub.get('clip_titulo', ''))
+
+        lives_dir = os.environ.get('LIVES_DIR', os.path.join(PROJECT_ROOT, 'lives'))
+        for vid in import_ids:
+            manifest_path = os.path.join(lives_dir, vid, 'clips_manifest.json')
+            if os.path.exists(manifest_path):
+                try:
+                    import json as _json
+                    with open(manifest_path) as f:
+                        clips = _json.load(f)
+                    known = pub_titles_by_live.get(vid, set())
+                    imports_clips_pend += sum(1 for c in clips if c.get('title', '') not in known)
+                except Exception:
+                    pass
+
+        # Motivo de nao rodar imports
+        config = db.load_config()
+        import_motivo = ''
+        if config.get('pipeline_imports_paused', 'false') == 'true':
+            import_motivo = 'pausado'
+        elif not config.get('import_pub_horarios', '').strip():
+            import_motivo = 'sem horario'
+        elif imports_total == 0:
+            import_motivo = 'fila vazia'
 
         self.send_json(200, {
             'instance_name': os.environ.get('INSTANCE_NAME', 'yt-pub-lives'),
             'total_lives': total_lives,
+            'total_clips': total_clips,
             'total_publicados': total_publicados,
             'lives_cortadas': cortados,
             'lives_pendentes': pendentes,
             'lives_erro': lives_erro,
-            'clips_erro': clips_erro
+            'clips_erro': clips_erro,
+            'imports_total': imports_total,
+            'imports_clips_pub': imports_clips_pub,
+            'imports_clips_pend': imports_clips_pend,
+            'imports_clips_erro': imports_clips_erro,
+            'import_motivo': import_motivo,
         })
 
     def handle_sync(self, data):

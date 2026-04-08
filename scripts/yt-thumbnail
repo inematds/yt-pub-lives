@@ -506,16 +506,45 @@ PRESETS = {
     'darkacademia': {'DESIGN_FONT':'dejavu','DESIGN_FONT_SIZE':'72','DESIGN_LAST_LINE_SCALE':'10','DESIGN_LINE_HEIGHT':'84','DESIGN_TRACKING':'normal','DESIGN_CASE':'upper','DESIGN_TEXT_COLOR':'#D4A574','DESIGN_HIGHLIGHT_COLOR':'#F2E8D5','DESIGN_HIGHLIGHT_ENABLED':'true','DESIGN_ACCENT_COLOR':'#8B6F47','DESIGN_ACCENT_WIDTH':'250','DESIGN_ACCENT_HEIGHT':'5','DESIGN_ACCENT_GAP':'30','DESIGN_ACCENT_ENABLED':'true','DESIGN_SHADOW_TYPE':'blur','DESIGN_SHADOW_COLOR':'#1A0E08','DESIGN_SHADOW_SIZE':'8','DESIGN_SHADOW_OPACITY':'180','DESIGN_GRADIENT':'top-left','DESIGN_GRADIENT_OPACITY':'170','DESIGN_GRADIENT_COVERAGE':'50','DESIGN_BRAND_FONT':'dejavu','DESIGN_BRAND_SIZE':'22','DESIGN_BRAND_COLOR':'#8B6F47','DESIGN_BRAND_POSITION':'bottom-left','DESIGN_POSITION':'top-left'},
     'boldoutline': {'DESIGN_FONT':'anton','DESIGN_FONT_SIZE':'92','DESIGN_LAST_LINE_SCALE':'0','DESIGN_LINE_HEIGHT':'98','DESIGN_TRACKING':'normal','DESIGN_CASE':'upper','DESIGN_TEXT_COLOR':'#FFFFFF','DESIGN_HIGHLIGHT_COLOR':'#FFFFFF','DESIGN_HIGHLIGHT_ENABLED':'false','DESIGN_ACCENT_COLOR':'#FFFFFF','DESIGN_ACCENT_WIDTH':'250','DESIGN_ACCENT_HEIGHT':'5','DESIGN_ACCENT_GAP':'30','DESIGN_ACCENT_ENABLED':'false','DESIGN_SHADOW_TYPE':'outline','DESIGN_SHADOW_COLOR':'#000000','DESIGN_SHADOW_SIZE':'6','DESIGN_SHADOW_OPACITY':'255','DESIGN_GRADIENT':'none','DESIGN_GRADIENT_OPACITY':'0','DESIGN_GRADIENT_COVERAGE':'0','DESIGN_BRAND_FONT':'anton','DESIGN_BRAND_SIZE':'28','DESIGN_BRAND_COLOR':'#FFFFFF','DESIGN_BRAND_POSITION':'bottom-left','DESIGN_POSITION':'center-left'},
     'elegantdark': {'DESIGN_FONT':'montserrat-extrabold','DESIGN_FONT_SIZE':'76','DESIGN_LAST_LINE_SCALE':'15','DESIGN_LINE_HEIGHT':'86','DESIGN_TRACKING':'tight','DESIGN_CASE':'upper','DESIGN_TEXT_COLOR':'#C9B37E','DESIGN_HIGHLIGHT_COLOR':'#FFFFFF','DESIGN_HIGHLIGHT_ENABLED':'true','DESIGN_ACCENT_COLOR':'#C9B37E','DESIGN_ACCENT_WIDTH':'250','DESIGN_ACCENT_HEIGHT':'5','DESIGN_ACCENT_GAP':'30','DESIGN_ACCENT_ENABLED':'true','DESIGN_SHADOW_TYPE':'blur','DESIGN_SHADOW_COLOR':'#000000','DESIGN_SHADOW_SIZE':'8','DESIGN_SHADOW_OPACITY':'190','DESIGN_GRADIENT':'top-left','DESIGN_GRADIENT_OPACITY':'170','DESIGN_GRADIENT_COVERAGE':'45','DESIGN_BRAND_FONT':'montserrat-extrabold','DESIGN_BRAND_SIZE':'24','DESIGN_BRAND_COLOR':'#C9B37E','DESIGN_BRAND_POSITION':'bottom-left','DESIGN_POSITION':'top-left'},
+    'tiktok': {'DESIGN_FONT':'montserrat-extrabold','DESIGN_FONT_SIZE':'64','DESIGN_LAST_LINE_SCALE':'0','DESIGN_LINE_HEIGHT':'76','DESIGN_TRACKING':'tight','DESIGN_CASE':'upper','DESIGN_TEXT_COLOR':'#FFFFFF','DESIGN_HIGHLIGHT_COLOR':'#FE2C55','DESIGN_HIGHLIGHT_ENABLED':'true','DESIGN_ACCENT_COLOR':'#25F4EE','DESIGN_ACCENT_WIDTH':'250','DESIGN_ACCENT_HEIGHT':'5','DESIGN_ACCENT_GAP':'30','DESIGN_ACCENT_ENABLED':'true','DESIGN_SHADOW_TYPE':'outline','DESIGN_SHADOW_COLOR':'#000000','DESIGN_SHADOW_SIZE':'4','DESIGN_SHADOW_OPACITY':'220','DESIGN_GRADIENT':'top','DESIGN_GRADIENT_OPACITY':'180','DESIGN_GRADIENT_COVERAGE':'50','DESIGN_BRAND_FONT':'montserrat-extrabold','DESIGN_BRAND_SIZE':'22','DESIGN_BRAND_COLOR':'#FE2C55','DESIGN_BRAND_POSITION':'bottom-left','DESIGN_POSITION':'center-left'},
+    'stories': {'DESIGN_FONT':'montserrat-extrabold','DESIGN_FONT_SIZE':'56','DESIGN_LAST_LINE_SCALE':'0','DESIGN_LINE_HEIGHT':'68','DESIGN_TRACKING':'tight','DESIGN_CASE':'upper','DESIGN_TEXT_COLOR':'#FFFFFF','DESIGN_HIGHLIGHT_COLOR':'#FF6B6B','DESIGN_HIGHLIGHT_ENABLED':'true','DESIGN_ACCENT_COLOR':'#FF6B6B','DESIGN_ACCENT_WIDTH':'250','DESIGN_ACCENT_HEIGHT':'5','DESIGN_ACCENT_GAP':'30','DESIGN_ACCENT_ENABLED':'true','DESIGN_SHADOW_TYPE':'blur','DESIGN_SHADOW_COLOR':'#000000','DESIGN_SHADOW_SIZE':'8','DESIGN_SHADOW_OPACITY':'200','DESIGN_GRADIENT':'top','DESIGN_GRADIENT_OPACITY':'200','DESIGN_GRADIENT_COVERAGE':'60','DESIGN_BRAND_FONT':'montserrat-extrabold','DESIGN_BRAND_SIZE':'20','DESIGN_BRAND_COLOR':'#FF6B6B','DESIGN_BRAND_POSITION':'bottom-left','DESIGN_POSITION':'center-left'},
 }
 
 
 def compose_thumbnail(bg, frase_curta, cores_str, output_path):
     """Compoe thumbnail final: imagem + texto overlay com design configuravel."""
-    # Se tem random preset selecionado, aplicar os env vars do preset
+    # Se tem random preset selecionado, aplicar env vars (salvo ou hardcoded)
     random_preset = os.environ.get('DESIGN_RANDOM_PRESET', '')
-    if random_preset and random_preset in PRESETS:
-        for k, v in PRESETS[random_preset].items():
-            os.environ[k] = v
+    if random_preset:
+        # Tentar carregar preset salvo (customizado) do env
+        saved_json = os.environ.get('DESIGN_SAVED_PRESET', '')
+        if saved_json:
+            try:
+                import json as _json
+                saved = _json.loads(saved_json)
+                field_map = {
+                    'font': 'DESIGN_FONT', 'fontSize': 'DESIGN_FONT_SIZE', 'lastLineScale': 'DESIGN_LAST_LINE_SCALE',
+                    'lineHeight': 'DESIGN_LINE_HEIGHT', 'tracking': 'DESIGN_TRACKING', 'case': 'DESIGN_CASE',
+                    'textColor': 'DESIGN_TEXT_COLOR', 'highlightColor': 'DESIGN_HIGHLIGHT_COLOR',
+                    'highlightEnabled': 'DESIGN_HIGHLIGHT_ENABLED', 'accentColor': 'DESIGN_ACCENT_COLOR',
+                    'shadowType': 'DESIGN_SHADOW_TYPE', 'shadowColor': 'DESIGN_SHADOW_COLOR',
+                    'shadowSize': 'DESIGN_SHADOW_SIZE', 'shadowOpacity': 'DESIGN_SHADOW_OPACITY',
+                    'gradient': 'DESIGN_GRADIENT', 'gradientOpacity': 'DESIGN_GRADIENT_OPACITY',
+                    'gradientCoverage': 'DESIGN_GRADIENT_COVERAGE', 'brand': 'DESIGN_BRAND',
+                    'brandFont': 'DESIGN_BRAND_FONT', 'brandSize': 'DESIGN_BRAND_SIZE',
+                    'brandColor': 'DESIGN_BRAND_COLOR', 'brandPosition': 'DESIGN_BRAND_POSITION',
+                    'position': 'DESIGN_POSITION'
+                }
+                for js_key, env_key in field_map.items():
+                    if js_key in saved:
+                        os.environ[env_key] = str(saved[js_key])
+            except Exception:
+                pass
+        elif random_preset in PRESETS:
+            for k, v in PRESETS[random_preset].items():
+                os.environ[k] = v
+        print(f'  [thumb] Preset ativo: {random_preset}')
+
     # Read design config from env (set by scheduler from CONFIG sheet)
     design_font = os.environ.get('DESIGN_FONT', 'dejavu')
     design_font_size = int(os.environ.get('DESIGN_FONT_SIZE', THUMB_FONT_SIZE))

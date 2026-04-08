@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 User=nmaldaner
 WorkingDirectory=/home/nmaldaner/projetos/yt-pub-lives2/dashboard
-ExecStart=/usr/bin/python3 /home/nmaldaner/projetos/yt-pub-lives2/dashboard/server.py 8091
+ExecStart=/usr/bin/python3 /home/nmaldaner/projetos/yt-pub-lives2/dashboard/server.py 8092
 Restart=always
 RestartSec=5
 Environment=PATH=/usr/bin:/home/nmaldaner/.local/bin:/home/nmaldaner/.npm-global/bin

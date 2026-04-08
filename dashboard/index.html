@@ -80,9 +80,22 @@
   /* Stats Cards */
   .stats {
     display: flex;
-    gap: 8px;
+    flex-direction: column;
+    gap: 6px;
     margin-bottom: 16px;
+  }
+  .stats-row {
+    display: flex;
+    gap: 8px;
     flex-wrap: wrap;
+  }
+  .stats-row-label {
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    padding: 0 2px;
+    margin-bottom: -2px;
   }
 
   .stat-card {
@@ -692,7 +705,7 @@
 
 <div class="container">
   <header>
-    <h1><span>INEMA</span> Lives & Clips <small style="font-size:0.5em;color:var(--muted)">- <span id="instanceName"></span> <a href="#" onclick="openModal('modalChangelog');return false" style="color:var(--accent);text-decoration:none" title="Ver changelog">v3.18.24</a></small>
+    <h1><span>INEMA</span> Lives & Clips <small style="font-size:0.5em;color:var(--muted)">- <span id="instanceName"></span> <a href="#" onclick="openModal('modalChangelog');return false" style="color:var(--accent);text-decoration:none" title="Ver changelog">v3.20.25</a></small>
       <span id="headerCanais" style="display:block;font-size:0.4em;font-weight:normal;margin-top:4px"></span>
     </h1>
     <div class="header-actions">
@@ -761,33 +774,66 @@
 
   <!-- Stats -->
   <div class="stats" id="stats">
-    <div class="stat-card" onclick="filterByStatus('')" style="cursor:pointer" title="Ver todas">
-      <div class="label">Total Lives</div>
-      <div class="value blue" id="statLives">-</div>
+    <!-- Linha 1: Lives -->
+    <div class="stats-row">
+      <div class="stat-card" onclick="filterByStatus('')" style="cursor:pointer" title="Ver todas">
+        <div class="label">Total Lives</div>
+        <div class="value blue" id="statLives">-</div>
+      </div>
+      <div class="stat-card" onclick="filterByStatus('concluido')" style="cursor:pointer" title="Ver cortadas">
+        <div class="label">Cortadas</div>
+        <div class="value green" id="statCortadas">-</div>
+      </div>
+      <div class="stat-card" onclick="filterByStatus('pendente')" style="cursor:pointer" title="Ver pendentes">
+        <div class="label">Pendentes</div>
+        <div class="value yellow" id="statPendentes">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Lives Erro</div>
+        <div class="value" style="color:#ef4444" id="statLivesErro">-</div>
+      </div>
     </div>
-    <div class="stat-card" onclick="filterByStatus('concluido')" style="cursor:pointer" title="Ver cortadas">
-      <div class="label">Lives Cortadas</div>
-      <div class="value green" id="statCortadas">-</div>
+    <!-- Linha 2: Clips -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="label">Total Clips</div>
+        <div class="value blue" id="statTotalClips">-</div>
+      </div>
+      <div class="stat-card" onclick="filterByStatus('publicado')" style="cursor:pointer" title="Ver totalmente publicadas">
+        <div class="label">Publicados</div>
+        <div class="value green" id="statPublicados">-</div>
+      </div>
+      <div class="stat-card" onclick="filterByStatus('aguardando_pub')" style="cursor:pointer" title="Ver clips aguardando publicacao">
+        <div class="label">Pendentes</div>
+        <div class="value yellow" id="statAguardando">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Clips Erro</div>
+        <div class="value" style="color:#ef4444" id="statClipsErro">-</div>
+      </div>
     </div>
-    <div class="stat-card" onclick="filterByStatus('pendente')" style="cursor:pointer" title="Ver pendentes">
-      <div class="label">Pendentes</div>
-      <div class="value yellow" id="statPendentes">-</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">Lives Erro</div>
-      <div class="value" style="color:#ef4444" id="statLivesErro">-</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">Clips Erro</div>
-      <div class="value" style="color:#ef4444" id="statClipsErro">-</div>
-    </div>
-    <div class="stat-card" onclick="filterByStatus('aguardando_pub')" style="cursor:pointer" title="Ver clips aguardando publicacao">
-      <div class="label">Clips Aguardando</div>
-      <div class="value yellow" id="statAguardando">-</div>
-    </div>
-    <div class="stat-card" onclick="filterByStatus('publicado')" style="cursor:pointer" title="Ver totalmente publicadas">
-      <div class="label">Clips Publicados</div>
-      <div class="value green" id="statPublicados">-</div>
+    <!-- Linha 3: Imports -->
+    <div class="stats-row">
+      <div class="stat-card" onclick="showImportFilter('')" style="cursor:pointer;border-top:2px solid #a78bfa" title="Ver imports">
+        <div class="label" style="color:#a78bfa">Total Imports</div>
+        <div class="value" style="color:#a78bfa" id="statImports">-</div>
+      </div>
+      <div class="stat-card" onclick="showImportFilter('publicado')" style="cursor:pointer;border-top:2px solid #a78bfa" title="Clips de imports publicados">
+        <div class="label" style="color:#a78bfa">Imp. Publicados</div>
+        <div class="value green" id="statImportsPub">-</div>
+      </div>
+      <div class="stat-card" onclick="showImportFilter('pendente')" style="cursor:pointer;border-top:2px solid #a78bfa" title="Clips de imports pendentes">
+        <div class="label" style="color:#a78bfa">Imp. Pendentes</div>
+        <div class="value yellow" id="statImportsPend">-</div>
+      </div>
+      <div class="stat-card" onclick="showImportFilter('erro')" style="cursor:pointer;border-top:2px solid #a78bfa" title="Clips de imports com erro">
+        <div class="label" style="color:#a78bfa">Imp. Erros</div>
+        <div class="value" style="color:#ef4444" id="statImportsErro">-</div>
+      </div>
+      <div class="stat-card" id="statImportMotivo" style="border-top:2px solid #a78bfa;display:none">
+        <div class="label" style="color:#a78bfa" id="statImportMotivoLabel">Imports inativo</div>
+        <div class="value" style="color:var(--muted);font-size:0.85em" id="statImportMotivoVal">-</div>
+      </div>
     </div>
   </div>
 
@@ -820,6 +866,7 @@
         <button class="config-tab" onclick="showConfigTab('design', this)">Design Thumb</button>
         <button class="config-tab" onclick="showConfigTab('planilha', this)">Planilha</button>
         <button class="config-tab" onclick="showConfigTab('imports', this)">Imports</button>
+        <button class="config-tab" onclick="showConfigTab('enrich', this)">Enrich Lives</button>
       </div>
       <button onclick="saveActiveTab(this)" id="btnSaveTop" style="padding:6px 20px;">Salvar</button>
     </div>
@@ -1546,6 +1593,63 @@
       </div>
     </div>
 
+    <!-- Tab: Enrich Lives -->
+    <div class="config-tab-content" id="cfgTab_enrich">
+      <div class="config-section">
+        <h3>Enriquecer Lives</h3>
+        <p style="color:var(--muted);font-size:0.82em;margin-bottom:12px">Lives com titulo generico "INEMA" recebem titulo, descricao e thumbnail automaticamente via IA.</p>
+        <div class="config-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+          <div class="config-field">
+            <label>Enrich automatico</label>
+            <select id="cfgEnrichAuto">
+              <option value="false">Nao</option>
+              <option value="true">Sim</option>
+            </select>
+          </div>
+          <div class="config-field">
+            <label>Max lives por rodada</label>
+            <input type="number" id="cfgEnrichMax" min="1" max="50" value="3">
+          </div>
+          <div class="config-field">
+            <label>Lives pendentes</label>
+            <div id="enrichPendingCount" style="padding:8px 0;color:var(--accent);font-weight:bold">-</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="config-section">
+        <h3>Horarios de Enrich</h3>
+        <div class="hour-picker-header">
+          <label>Selecione os horarios (clique para ativar/desativar)</label>
+          <div class="hour-picker-actions">
+            <button onclick="hourPickerSelectAll('enrich')">Todas</button>
+            <button onclick="hourPickerClearAll('enrich')">Limpar</button>
+          </div>
+        </div>
+        <div class="hour-picker" id="enrichHourPicker"></div>
+        <div class="hour-summary" id="enrichSummary"></div>
+        <div style="margin-top:8px;display:flex;align-items:center;gap:8px;">
+          <label style="font-size:0.85em;color:var(--muted)">Minuto exato:</label>
+          <input type="number" id="cfgEnrichMinuto" min="0" max="59" value="0" style="width:60px">
+          <span style="font-size:0.8em;color:var(--muted)">Ex: 15 → roda em HH:15</span>
+        </div>
+      </div>
+
+      <div class="config-section">
+        <h3>Prompt para Titulo + Descricao</h3>
+        <textarea id="cfgEnrichPrompt" rows="8" style="width:100%;font-family:monospace;font-size:0.82em;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:10px;resize:vertical"></textarea>
+        <span class="hint">Prompt enviado a IA para gerar titulo e descricao da live. Deve retornar JSON: { "title": "...", "description": "..." }</span>
+      </div>
+
+      <div class="config-section">
+        <h3>Acoes</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <button onclick="enrichRunNow(this)" style="background:var(--accent);">Enriquecer Agora</button>
+          <span id="enrichActionMsg" style="color:var(--muted);font-size:0.82em;margin-left:8px;"></span>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <!-- Tabs -->
@@ -1766,6 +1870,7 @@ function saveActiveTab(btn) {
   else if (_activeConfigTab === 'design') saveDesign(btn);
   else if (_activeConfigTab === 'planilha') saveSheet(btn);
   else if (_activeConfigTab === 'imports') saveImports(btn);
+  else if (_activeConfigTab === 'enrich') saveEnrich(btn);
 }
 
 function toggleImportHorarios(val) {
@@ -1788,6 +1893,44 @@ async function saveImports(btn) {
     if (btn) { btn.textContent = 'Salvo!'; setTimeout(() => { btn.textContent = 'Salvar'; btn.disabled = false; }, 1500); }
   } catch (e) {
     if (btn) { btn.textContent = 'Erro'; btn.disabled = false; }
+  }
+}
+
+async function saveEnrich(btn) {
+  const data = {
+    enrich_auto:        document.getElementById('cfgEnrichAuto').value,
+    enrich_max_por_vez: document.getElementById('cfgEnrichMax').value,
+    enrich_horarios:    hoursToString('enrich'),
+    enrich_minuto:      document.getElementById('cfgEnrichMinuto').value,
+  };
+  // Save prompt to file via prompts endpoint
+  const promptText = document.getElementById('cfgEnrichPrompt').value;
+  if (btn) { btn.textContent = 'Salvando...'; btn.disabled = true; }
+  try {
+    await fetchJson('/api/config', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
+    await fetchJson('/api/prompts', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ prompt_enrich: promptText }) });
+    if (btn) { btn.textContent = 'Salvo!'; setTimeout(() => { btn.textContent = 'Salvar'; btn.disabled = false; }, 1500); }
+  } catch (e) {
+    if (btn) { btn.textContent = 'Erro'; btn.disabled = false; }
+  }
+}
+
+async function enrichRunNow(btn) {
+  const msg = document.getElementById('enrichActionMsg');
+  if (btn) { btn.textContent = 'Enriquecendo...'; btn.disabled = true; }
+  msg.textContent = '';
+  try {
+    const resp = await fetchJson('/api/enrich', { method: 'POST', body: '{}' });
+    const n = resp.enriched || 0;
+    const errs = resp.errors || 0;
+    msg.textContent = n > 0 ? `${n} live(s) enriquecida(s)` + (errs ? `, ${errs} erro(s)` : '') : 'Nenhuma live generica encontrada';
+    msg.style.color = n > 0 ? 'var(--green)' : 'var(--muted)';
+    loadAll();
+  } catch (e) {
+    msg.textContent = 'Erro: ' + e;
+    msg.style.color = 'var(--red)';
+  } finally {
+    if (btn) { btn.textContent = 'Enriquecer Agora'; btn.disabled = false; }
   }
 }
 
@@ -2203,7 +2346,7 @@ function highlightPreset(name) {
 }
 
 // --- Hour Picker ---
-const hourState = { pub: new Set(), corte: new Set(), import: new Set() };
+const hourState = { pub: new Set(), corte: new Set(), import: new Set(), enrich: new Set() };
 
 function buildHourPicker(name) {
   const container = document.getElementById(name + 'HourPicker');
@@ -2228,7 +2371,7 @@ function updateHourSummary(name) {
   const el = document.getElementById(name + 'Summary');
   const count = hourState[name].size;
   const minutoEl = document.getElementById('cfg' + name.charAt(0).toUpperCase() + name.slice(1) + 'Minuto');
-  const minuto = String(minutoEl ? minutoEl.value : 0).padStart(2, '0');
+  const minuto = String(parseInt(minutoEl ? minutoEl.value : 0) || 0).padStart(2, '0');
   if (count === 0) {
     el.innerHTML = 'Nenhum horario selecionado';
   } else if (count === 24) {
@@ -2244,6 +2387,7 @@ function updateHourSummary(name) {
 document.getElementById('cfgCorteMinuto').addEventListener('input', () => updateHourSummary('corte'));
 document.getElementById('cfgPubMinuto').addEventListener('input', () => updateHourSummary('pub'));
 document.getElementById('cfgImportMinuto').addEventListener('input', () => updateHourSummary('import'));
+document.getElementById('cfgEnrichMinuto').addEventListener('input', () => updateHourSummary('enrich'));
 
 function hourPickerSelectAll(name) {
   for (let h = 0; h < 24; h++) hourState[name].add(h);
@@ -2257,7 +2401,7 @@ function hourPickerClearAll(name) {
 
 function hoursToString(name) {
   const minutoEl = document.getElementById('cfg' + name.charAt(0).toUpperCase() + name.slice(1) + 'Minuto');
-  const minuto = String(minutoEl ? minutoEl.value : 0).padStart(2, '0');
+  const minuto = String(parseInt(minutoEl ? minutoEl.value : 0) || 0).padStart(2, '0');
   const sorted = [...hourState[name]].sort((a,b) => a-b);
   return sorted.map(h => String(h).padStart(2,'0') + ':' + minuto).join(',');
 }
@@ -2380,15 +2524,16 @@ async function loadStats() {
   document.getElementById('statLives').textContent = data.total_lives;
   document.getElementById('statCortadas').textContent = data.lives_cortadas;
   document.getElementById('statPendentes').textContent = data.lives_pendentes;
+  document.getElementById('statTotalClips').textContent = data.total_clips || 0;
   document.getElementById('statPublicados').textContent = data.total_publicados;
   document.getElementById('statLivesErro').textContent = data.lives_erro || 0;
   document.getElementById('statClipsErro').textContent = data.clips_erro || 0;
 
-  // Calcular clips aguardando publicacao
+  // Calcular clips aguardando publicacao (excluindo imports)
   let aguardando = 0;
   if (allLives && allLives.length) {
     allLives.forEach(l => {
-      if (l.status_cortes === 'concluido') {
+      if (l.status_cortes === 'concluido' && !(l.video_id || '').startsWith('import_')) {
         const qtd = parseInt(l.qtd_clips) || 0;
         const pub = parseInt(l.clips_publicados) || 0;
         if (qtd > pub) aguardando += (qtd - pub);
@@ -2396,6 +2541,30 @@ async function loadStats() {
     });
   }
   document.getElementById('statAguardando').textContent = aguardando;
+
+  // Imports stats
+  document.getElementById('statImports').textContent = data.imports_total || 0;
+  document.getElementById('statImportsPub').textContent = data.imports_clips_pub || 0;
+  document.getElementById('statImportsPend').textContent = data.imports_clips_pend || 0;
+  document.getElementById('statImportsErro').textContent = data.imports_clips_erro || 0;
+
+  const motivoCard = document.getElementById('statImportMotivo');
+  const motivoVal = document.getElementById('statImportMotivoVal');
+  const motivo = data.import_motivo || '';
+  if (motivo) {
+    motivoCard.style.display = '';
+    const labels = { 'pausado': 'Pausado manualmente', 'sem horario': 'Sem horario configurado', 'fila vazia': 'Fila vazia' };
+    document.getElementById('statImportMotivoLabel').textContent = motivo === 'pausado' ? 'Imports pausado' : 'Imports inativo';
+    motivoVal.textContent = labels[motivo] || motivo;
+  } else {
+    motivoCard.style.display = 'none';
+  }
+}
+
+function showImportFilter(status) {
+  showTab('publicados', document.querySelector('.tab[data-tab="publicados"]'), status);
+  document.getElementById('pubOrigem').value = 'import';
+  filterPubs();
 }
 
 async function toggleClipPaused(liveId, title) {
@@ -2865,6 +3034,24 @@ async function loadConfig() {
   if (c.import_minuto) document.getElementById('cfgImportMinuto').value = c.import_minuto;
   toggleImportHorarios(c.import_fila_global || 'true');
 
+  // Enrich Lives
+  if (c.enrich_auto) document.getElementById('cfgEnrichAuto').value = c.enrich_auto;
+  if (c.enrich_max_por_vez) document.getElementById('cfgEnrichMax').value = c.enrich_max_por_vez;
+  hourState.enrich = stringToHours(c.enrich_horarios || '');
+  buildHourPicker('enrich');
+  if (c.enrich_minuto) document.getElementById('cfgEnrichMinuto').value = c.enrich_minuto;
+
+  // Count pending enrich lives
+  try {
+    const livesData = await fetchJson('/api/lives');
+    const genericas = (livesData.lives || []).filter(l =>
+      (l.titulo || '').trim().toUpperCase() === 'INEMA' &&
+      l.observacoes !== 'enriquecida' &&
+      !(l.video_id || '').startsWith('import_')
+    );
+    document.getElementById('enrichPendingCount').textContent = genericas.length;
+  } catch (e) {}
+
   // Prompts
   try {
     const pData = await fetchJson('/api/prompts');
@@ -2872,6 +3059,7 @@ async function loadConfig() {
     document.getElementById('cfgPromptCortes').value = p.prompt_cortes || '';
     document.getElementById('cfgPromptPub').value = p.prompt_pub || '';
     document.getElementById('cfgPromptThumb').value = p.prompt_thumb || '';
+    document.getElementById('cfgEnrichPrompt').value = p.prompt_enrich || '';
   } catch (e) {}
 }
 
@@ -3537,6 +3725,26 @@ loadAll();
       <button onclick="closeModal('modalChangelog')" style="background:none;border:none;color:var(--muted);font-size:1.2em;cursor:pointer">X</button>
     </div>
     <div class="modal-body" style="padding:16px;overflow-y:auto;font-size:0.85em;line-height:1.8">
+      <h3 style="color:var(--accent);margin-bottom:8px">v3.20.25</h3>
+      <p style="color:var(--muted);margin-bottom:4px"><strong>Features:</strong></p>
+      <ul style="margin:0 0 16px 20px;color:var(--text)">
+        <li>Enrich Lives: lives com titulo generico "INEMA" recebem titulo, descricao e thumbnail via IA automaticamente</li>
+        <li>Nova aba "Enrich Lives" na Config: toggle, horarios, max por rodada, prompt editavel, botao "Enriquecer Agora"</li>
+        <li>Prompt configuravel para geracao de titulo e descricao (config/prompt_enrich.txt)</li>
+        <li>Thumbnail gerada com imagem padrao + texto overlay (mesmo estilo dos clips)</li>
+      </ul>
+
+      <h3 style="color:var(--accent);margin-bottom:8px">v3.19.25</h3>
+      <p style="color:var(--muted);margin-bottom:4px"><strong>Features:</strong></p>
+      <ul style="margin:0 0 8px 20px;color:var(--text)">
+        <li>Stats imports alinhados sob os 3 cards de clips</li>
+        <li>Botao "Distribuir p/ 7 Canais": distribui MP4s de imports/ round-robin para as 7 instancias e dispara scan em cada uma</li>
+      </ul>
+      <p style="color:var(--muted);margin-bottom:4px"><strong>Fixes:</strong></p>
+      <ul style="margin:0 0 16px 20px;color:var(--text)">
+        <li>Imports: descricao vazia causava erro_upload no yt-publish (fallback para titulo)</li>
+      </ul>
+
       <h3 style="color:var(--accent);margin-bottom:8px">v3.18.24</h3>
       <p style="color:var(--muted);margin-bottom:4px"><strong>Features:</strong></p>
       <ul style="margin:0 0 8px 20px;color:var(--text)">
