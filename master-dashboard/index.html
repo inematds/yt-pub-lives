@@ -527,6 +527,7 @@ function render() {
             <span class="status-dot ${allUp ? 'green' : allDown ? 'red' : 'yellow'}"></span>
             ${inst.name} <span style="font-size:0.82rem;color:var(--green);font-weight:700;margin-left:4px">${db.publicados_hoje || 0} pub 24h</span>
             ${inst.google_email ? `<span style="font-size:0.62rem;color:var(--muted);margin-left:4px">${inst.google_email}</span>` : ''}
+            ${db.tiktok_handles && db.tiktok_handles.length ? `<br><span style="font-size:0.62rem;color:#e879f9;margin-left:20px">TikTok: ${db.tiktok_handles.join(', ')}</span>` : ''}
           </h2>
           <span style="display:flex;align-items:center;gap:6px">
             ${db.canal_url ? `<a href="${db.canal_url}" target="_blank" onclick="event.stopPropagation()" style="text-decoration:none"><span style="background:#dc2626;color:#fff;font-size:0.62rem;font-weight:600;padding:1px 5px;border-radius:3px">YT</span></a>` : ''}
@@ -578,33 +579,52 @@ function render() {
           </div>
         </div>
 
-        <!-- Lives stats -->
-        <div class="stats" style="grid-template-columns: repeat(4, 1fr);margin-bottom:4px">
-          <div class="stat"><div class="val">${db.total_lives || 0}</div><div class="lbl">Lives</div></div>
-          <div class="stat"><div class="val" style="color:var(--yellow)">${db.lives_pendentes || 0}</div><div class="lbl">Pendentes</div></div>
-          <div class="stat"><div class="val" style="color:var(--green)">${db.lives_cortadas || 0}</div><div class="lbl">Cortadas</div></div>
-          <div class="stat"><div class="val" style="color:${(db.lives_erro||0)>0?'var(--red)':'var(--muted)'}">${db.lives_erro || 0}</div><div class="lbl">Erros</div></div>
-        </div>
-        <!-- Clips stats -->
-        <div class="stats" style="grid-template-columns: repeat(4, 1fr);margin-bottom:4px">
-          <div class="stat"><div class="val">${db.total_clips || 0}</div><div class="lbl">Clips</div></div>
-          <div class="stat"><div class="val" style="color:var(--yellow)">${db.clips_pendentes || 0}</div><div class="lbl">Pendentes</div></div>
-          <div class="stat"><div class="val" style="color:var(--green)">${db.clips_publicados || 0}</div><div class="lbl">Publicados</div></div>
-          <div class="stat"><div class="val" style="color:${(db.erros||0)>0?'var(--red)':'var(--muted)'}">${db.erros || 0}</div><div class="lbl">Erros</div></div>
-        </div>
-        <!-- Imports stats -->
-        <div class="stats" style="grid-template-columns: repeat(4, 1fr);margin-bottom:8px;border-top:1px solid rgba(167,139,250,0.3);padding-top:4px">
-          <div class="stat"><div class="val" style="color:#a78bfa">${db.imports_total || 0}</div><div class="lbl">Imports</div></div>
-          <div class="stat"><div class="val" style="color:var(--yellow)">${db.imports_pend || 0}</div><div class="lbl">Pendentes</div></div>
-          <div class="stat"><div class="val" style="color:var(--green)">${db.imports_pub || 0}</div><div class="lbl">Publicados</div></div>
-          <div class="stat"><div class="val" style="color:${(db.imports_erro||0)>0?'var(--red)':'var(--muted)'}">${db.imports_erro || 0}</div><div class="lbl">Erros</div></div>
-        </div>
-        <div class="stats" style="grid-template-columns: repeat(4, 1fr);margin-bottom:8px;border-top:1px solid rgba(244,114,182,0.3);padding-top:4px">
-          <div class="stat"><div class="val" style="color:#f472b6">${db.tiktok_total || 0}</div><div class="lbl">TikTok</div></div>
-          <div class="stat"><div class="val" style="color:var(--yellow)">${db.tiktok_pend || 0}</div><div class="lbl">Pendentes</div></div>
-          <div class="stat"><div class="val" style="color:var(--green)">${db.tiktok_pub || 0}</div><div class="lbl">Publicados</div></div>
-          <div class="stat"><div class="val" style="color:${(db.tiktok_erro||0)>0?'var(--red)':'var(--muted)'}">${db.tiktok_erro || 0}</div><div class="lbl">Erros</div></div>
-        </div>
+        <table style="width:100%;font-size:0.92rem;border-collapse:collapse;margin-bottom:8px">
+          <thead>
+            <tr style="color:var(--muted);text-align:right">
+              <th style="text-align:left;padding:2px 4px"></th>
+              <th style="padding:2px 4px">Total</th>
+              <th style="padding:2px 4px">Pend</th>
+              <th style="padding:2px 4px">Pub</th>
+              <th style="padding:2px 4px">Erros</th>
+              <th style="padding:2px 4px;color:var(--blue)">24h</th>
+            </tr>
+          </thead>
+          <tbody style="text-align:right">
+            <tr>
+              <td style="text-align:left;padding:2px 4px;color:var(--text)">Lives</td>
+              <td style="padding:2px 4px">${db.total_lives || 0}</td>
+              <td style="padding:2px 4px;color:var(--yellow)">${db.lives_pendentes || 0}</td>
+              <td style="padding:2px 4px;color:var(--green)">${db.lives_cortadas || 0}</td>
+              <td style="padding:2px 4px;color:${(db.lives_erro||0)>0?'var(--red)':'var(--muted)'}">${db.lives_erro || 0}</td>
+              <td style="padding:2px 4px;color:var(--blue)">${db.cortados_hoje || 0}</td>
+            </tr>
+            <tr>
+              <td style="text-align:left;padding:2px 4px;color:var(--text)">Clips</td>
+              <td style="padding:2px 4px">${db.total_clips || 0}</td>
+              <td style="padding:2px 4px;color:var(--yellow)">${db.clips_pendentes || 0}</td>
+              <td style="padding:2px 4px;color:var(--green)">${db.clips_publicados || 0}</td>
+              <td style="padding:2px 4px;color:${(db.erros||0)>0?'var(--red)':'var(--muted)'}">${db.erros || 0}</td>
+              <td style="padding:2px 4px;color:var(--blue)">${db.clips_24h || 0}</td>
+            </tr>
+            <tr style="border-top:1px solid rgba(167,139,250,0.2)">
+              <td style="text-align:left;padding:2px 4px;color:#a78bfa">Imports</td>
+              <td style="padding:2px 4px;color:#a78bfa">${db.imports_total || 0}</td>
+              <td style="padding:2px 4px;color:var(--yellow)">${db.imports_pend || 0}</td>
+              <td style="padding:2px 4px;color:var(--green)">${db.imports_pub || 0}</td>
+              <td style="padding:2px 4px;color:${(db.imports_erro||0)>0?'var(--red)':'var(--muted)'}">${db.imports_erro || 0}</td>
+              <td style="padding:2px 4px;color:var(--blue)">${db.imports_24h || 0}</td>
+            </tr>
+            <tr style="border-top:1px solid rgba(244,114,182,0.2)">
+              <td style="text-align:left;padding:2px 4px;color:#f472b6">TikTok</td>
+              <td style="padding:2px 4px;color:#f472b6">${db.tiktok_total || 0}</td>
+              <td style="padding:2px 4px;color:var(--yellow)">${db.tiktok_pend || 0}</td>
+              <td style="padding:2px 4px;color:var(--green)">${db.tiktok_pub || 0}</td>
+              <td style="padding:2px 4px;color:${(db.tiktok_erro||0)>0?'var(--red)':'var(--muted)'}">${db.tiktok_erro || 0}</td>
+              <td style="padding:2px 4px;color:var(--blue)">${db.tiktok_24h || 0}</td>
+            </tr>
+          </tbody>
+        </table>
 
         <!-- Grafico pub -->
         ${db.pub_history ? `<div style="background:rgba(255,255,255,0.03);border-radius:6px;padding:6px 8px;margin-bottom:8px">
@@ -748,9 +768,9 @@ async function startAuth(id) {
 function miniChart(history) {
   if (!history || !history.length) return '';
   const n = history.length;
-  const showValues = n <= 14;
+  const showValues = n <= 31;
   const showAllLabels = n <= 14;
-  const w = 280, h = showValues ? 50 : 45, pad = 2;
+  const w = 280, h = showValues ? 55 : 45, pad = 2;
   const counts = history.map(d => d.count);
   const max = Math.max(...counts, 1);
   const stepX = (w - pad * 2) / Math.max(n - 1, 1);
@@ -780,6 +800,7 @@ function miniChart(history) {
   }).join('');
 
   const values = showValues ? counts.map((c, i) => {
+    if (c <= 1) return '';
     const x = pad + i * stepX;
     return `<text x="${x}" y="${yOf(c) - 4}" fill="#e4e4e7" font-size="7" text-anchor="middle" font-weight="600">${c}</text>`;
   }).join('') : '';

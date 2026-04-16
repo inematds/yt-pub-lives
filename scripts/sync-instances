@@ -10,6 +10,8 @@ TARGETS=(
     "/home/nmaldaner/projetos/yt-pub-lives5"
     "/home/nmaldaner/projetos/yt-pub-lives6"
     "/home/nmaldaner/projetos/yt-pub-lives7"
+    "/home/nmaldaner/projetos/yt-pub-lives8"
+    "/home/nmaldaner/projetos/yt-pub-lives9"
 )
 
 FILES=(

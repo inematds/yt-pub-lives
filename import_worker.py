@@ -386,7 +386,7 @@ def clean_clips(only_fully_published=True):
 
 # Raiz onde ficam todas as instancias (ex: /home/nmaldaner/projetos/)
 _INSTANCES_BASE = os.path.dirname(PROJECT_ROOT)
-_INSTANCE_NAMES = [f'yt-pub-lives{i}' for i in range(1, 8)]
+_INSTANCE_NAMES = [f'yt-pub-lives{i}' for i in range(1, 10)]
 
 # Pasta central de distribuicao (fora das instancias)
 DIST_IMPORTS_DIR = '/home/nmaldaner/projetos/yt-pub-lives/imports'

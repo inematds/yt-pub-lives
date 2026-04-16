@@ -705,7 +705,7 @@
 
 <div class="container">
   <header>
-    <h1><span>INEMA</span> Lives & Clips <small style="font-size:0.5em;color:var(--muted)">- <span id="instanceName"></span> <a href="#" onclick="openModal('modalChangelog');return false" style="color:var(--accent);text-decoration:none" title="Ver changelog">v3.21.25</a></small>
+    <h1><span>INEMA</span> Lives & Clips <small style="font-size:0.5em;color:var(--muted)">- <span id="instanceName"></span> <a href="#" onclick="openModal('modalChangelog');return false" style="color:var(--accent);text-decoration:none" title="Ver changelog">v3.23.25</a></small>
       <span id="headerCanais" style="display:block;font-size:0.4em;font-weight:normal;margin-top:4px"></span>
     </h1>
     <div class="header-actions">
@@ -721,9 +721,13 @@
   <div class="config-panel" id="syncPanel" style="display:none;margin-bottom:16px">
     <div class="config-section">
       <h3>Sincronizar Lives do Canal de Origem</h3>
-      <div style="display:flex;gap:12px;align-items:center;margin-bottom:14px">
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
         <button onclick="quickSync()" id="btnQuickSync">Sync Rapido (tudo que falta)</button>
         <button class="small" id="btnAutoSync" onclick="toggleAutoSync()" title="Sync automatico a meia-noite">Auto-sync: -</button>
+        <label style="font-size:0.85em;color:var(--muted);display:flex;align-items:center;gap:6px">
+          A partir de:
+          <input type="text" id="syncAutoDateFrom" placeholder="YYYY-MM-DD" pattern="\d{4}-\d{2}-\d{2}" maxlength="10" onchange="saveSyncAutoDateFrom()" style="width:120px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:0.85em" title="Auto-sync so considera lives publicadas a partir desta data. Vazio = sem filtro (pega tudo).">
+        </label>
       </div>
       <h4 style="color:var(--muted);margin-bottom:8px;font-size:0.85em">Sync avancado com filtros</h4>
       <div class="config-grid" style="grid-template-columns: 1fr 1fr 1fr 1fr auto;">
@@ -757,6 +761,11 @@
         </div>
       </div>
       <div id="syncResult" style="margin-top:8px;color:var(--muted);font-size:0.9em"></div>
+      <div style="margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button onclick="syncFromUrl(this)" style="background:var(--accent);white-space:nowrap">Importar Video</button>
+        <input type="text" id="syncUrlInput" placeholder="https://www.youtube.com/watch?v=..." style="flex:1;min-width:280px;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:0.85em">
+      </div>
+      <span id="syncUrlMsg" style="color:var(--muted);font-size:0.78em;margin-top:4px;display:block"></span>
     </div>
   </div>
 
@@ -774,98 +783,60 @@
 
   <!-- Stats -->
   <div class="stats" id="stats">
-    <!-- Linha 1: Lives -->
-    <div class="stats-row">
-      <div class="stat-card" onclick="filterByStatus('')" style="cursor:pointer" title="Ver todas">
-        <div class="label">Total Lives</div>
-        <div class="value blue" id="statLives">-</div>
-      </div>
-      <div class="stat-card" onclick="filterByStatus('concluido')" style="cursor:pointer" title="Ver cortadas">
-        <div class="label">Cortadas</div>
-        <div class="value green" id="statCortadas">-</div>
-      </div>
-      <div class="stat-card" onclick="filterByStatus('pendente')" style="cursor:pointer" title="Ver pendentes">
-        <div class="label">Pendentes</div>
-        <div class="value yellow" id="statPendentes">-</div>
-      </div>
-      <div class="stat-card">
-        <div class="label">Lives Erro</div>
-        <div class="value" style="color:#ef4444" id="statLivesErro">-</div>
-      </div>
+    <div style="display:grid;grid-template-columns:80px repeat(5, 1fr);gap:0;font-size:0.92rem;margin-bottom:8px">
+      <div style="padding:4px 6px;color:var(--muted)"></div>
+      <div style="padding:4px 6px;color:var(--muted);text-align:center">Total</div>
+      <div style="padding:4px 6px;color:var(--muted);text-align:center">Pend</div>
+      <div style="padding:4px 6px;color:var(--muted);text-align:center">Pub</div>
+      <div style="padding:4px 6px;color:var(--muted);text-align:center">Erros</div>
+      <div style="padding:4px 6px;color:var(--blue);text-align:center">24h</div>
+
+      <div style="padding:4px 6px;cursor:pointer" onclick="filterByStatus('')">Lives</div>
+      <div style="padding:4px 6px;text-align:center" id="statLives">-</div>
+      <div style="padding:4px 6px;text-align:center;color:var(--yellow)" id="statPendentes">-</div>
+      <div style="padding:4px 6px;text-align:center;color:var(--green)" id="statCortadas">-</div>
+      <div style="padding:4px 6px;text-align:center;color:#ef4444" id="statLivesErro">-</div>
+      <div style="padding:4px 6px;text-align:center;color:var(--blue)" id="statLives24h">-</div>
+
+      <div style="padding:4px 6px">Clips</div>
+      <div style="padding:4px 6px;text-align:center" id="statTotalClips">-</div>
+      <div style="padding:4px 6px;text-align:center;color:var(--yellow)" id="statAguardando">-</div>
+      <div style="padding:4px 6px;text-align:center;color:var(--green)" id="statPublicados">-</div>
+      <div style="padding:4px 6px;text-align:center;color:#ef4444" id="statClipsErro">-</div>
+      <div style="padding:4px 6px;text-align:center;color:var(--blue)" id="statClips24h">-</div>
+
+      <div style="padding:4px 6px;color:#a78bfa;cursor:pointer;border-top:1px solid rgba(167,139,250,0.3)" onclick="showImportFilter('')">Imports</div>
+      <div style="padding:4px 6px;text-align:center;color:#a78bfa;border-top:1px solid rgba(167,139,250,0.3)" id="statImports">-</div>
+      <div style="padding:4px 6px;text-align:center;color:var(--yellow);border-top:1px solid rgba(167,139,250,0.3)" id="statImportsPend">-</div>
+      <div style="padding:4px 6px;text-align:center;color:var(--green);border-top:1px solid rgba(167,139,250,0.3)" id="statImportsPub">-</div>
+      <div style="padding:4px 6px;text-align:center;color:#ef4444;border-top:1px solid rgba(167,139,250,0.3)" id="statImportsErro">-</div>
+      <div style="padding:4px 6px;text-align:center;color:var(--blue);border-top:1px solid rgba(167,139,250,0.3)" id="statImports24h">-</div>
+
+      <div style="padding:4px 6px;color:#f472b6;cursor:pointer;border-top:1px solid rgba(244,114,182,0.3)" onclick="showTiktokFilter('')">TikTok</div>
+      <div style="padding:4px 6px;text-align:center;color:#f472b6;border-top:1px solid rgba(244,114,182,0.3)" id="statTiktokBaixados">-</div>
+      <div style="padding:4px 6px;text-align:center;color:var(--yellow);border-top:1px solid rgba(244,114,182,0.3)" id="statTiktokPend">-</div>
+      <div style="padding:4px 6px;text-align:center;color:var(--green);border-top:1px solid rgba(244,114,182,0.3)" id="statTiktokPub">-</div>
+      <div style="padding:4px 6px;text-align:center;color:#ef4444;border-top:1px solid rgba(244,114,182,0.3)" id="statTiktokErro">-</div>
+      <div style="padding:4px 6px;text-align:center;color:var(--blue);border-top:1px solid rgba(244,114,182,0.3)" id="statTiktok24h">-</div>
     </div>
-    <!-- Linha 2: Clips -->
-    <div class="stats-row">
-      <div class="stat-card">
-        <div class="label">Total Clips</div>
-        <div class="value blue" id="statTotalClips">-</div>
-      </div>
-      <div class="stat-card" onclick="filterByStatus('publicado')" style="cursor:pointer" title="Ver totalmente publicadas">
-        <div class="label">Publicados</div>
-        <div class="value green" id="statPublicados">-</div>
-      </div>
-      <div class="stat-card" onclick="filterByStatus('aguardando_pub')" style="cursor:pointer" title="Ver clips aguardando publicacao">
-        <div class="label">Pendentes</div>
-        <div class="value yellow" id="statAguardando">-</div>
-      </div>
-      <div class="stat-card">
-        <div class="label">Clips Erro</div>
-        <div class="value" style="color:#ef4444" id="statClipsErro">-</div>
-      </div>
-    </div>
-    <!-- Linha 3: Imports -->
-    <div class="stats-row">
-      <div class="stat-card" onclick="showImportFilter('')" style="cursor:pointer;border-top:2px solid #a78bfa" title="Ver imports">
-        <div class="label" style="color:#a78bfa">Total Imports</div>
-        <div class="value" style="color:#a78bfa" id="statImports">-</div>
-      </div>
-      <div class="stat-card" onclick="showImportFilter('publicado')" style="cursor:pointer;border-top:2px solid #a78bfa" title="Clips de imports publicados">
-        <div class="label" style="color:#a78bfa">Imp. Publicados</div>
-        <div class="value green" id="statImportsPub">-</div>
-      </div>
-      <div class="stat-card" onclick="showImportFilter('pendente')" style="cursor:pointer;border-top:2px solid #a78bfa" title="Clips de imports pendentes">
-        <div class="label" style="color:#a78bfa">Imp. Pendentes</div>
-        <div class="value yellow" id="statImportsPend">-</div>
-      </div>
-      <div class="stat-card" onclick="showImportFilter('erro')" style="cursor:pointer;border-top:2px solid #a78bfa" title="Clips de imports com erro">
-        <div class="label" style="color:#a78bfa">Imp. Erros</div>
-        <div class="value" style="color:#ef4444" id="statImportsErro">-</div>
-      </div>
-      <div class="stat-card" id="statImportMotivo" style="border-top:2px solid #a78bfa;display:none">
-        <div class="label" style="color:#a78bfa" id="statImportMotivoLabel">Imports inativo</div>
-        <div class="value" style="color:var(--muted);font-size:0.85em" id="statImportMotivoVal">-</div>
-      </div>
-    </div>
-    <!-- Linha 4: TikTok -->
-    <div class="stats-row">
-      <div class="stat-card" style="border-top:2px solid #f472b6">
-        <div class="label" style="color:#f472b6">TikTok Baixados</div>
-        <div class="value" style="color:#f472b6" id="statTiktokBaixados">-</div>
-      </div>
-      <div class="stat-card" style="border-top:2px solid #f472b6">
-        <div class="label" style="color:#f472b6">TK Publicados</div>
-        <div class="value green" id="statTiktokPub">-</div>
-      </div>
-      <div class="stat-card" style="border-top:2px solid #f472b6">
-        <div class="label" style="color:#f472b6">TK Pendentes</div>
-        <div class="value yellow" id="statTiktokPend">-</div>
-      </div>
-      <div class="stat-card" style="border-top:2px solid #f472b6">
-        <div class="label" style="color:#f472b6">TK Erros</div>
-        <div class="value" style="color:#ef4444" id="statTiktokErro">-</div>
-      </div>
+    <div id="statImportMotivo" style="display:none;font-size:0.82em;color:var(--muted);margin-bottom:8px">
+      <span id="statImportMotivoLabel">Imports inativo</span>: <span id="statImportMotivoVal">-</span>
     </div>
   </div>
 
   <!-- Schedule Info -->
-  <div class="health-bar" id="scheduleInfo" style="gap:16px">
-    <span class="health-label">Proximo corte:</span>
+  <div class="health-bar" id="scheduleInfo" style="gap:12px;flex-wrap:wrap">
+    <span class="health-label">Corte:</span>
     <span id="nextCorte" style="color:var(--blue)">-</span>
     <span style="color:var(--border)">|</span>
-    <span class="health-label">Proxima pub:</span>
+    <span class="health-label">Clip:</span>
     <span id="nextPub" style="color:var(--green)">-</span>
     <span style="color:var(--border)">|</span>
+    <span class="health-label" style="color:#a78bfa">Import:</span>
+    <span id="nextImport" style="color:#a78bfa">-</span>
+    <span style="color:var(--border)">|</span>
     <span class="health-label" style="color:#f472b6">TikTok:</span>
-    <span id="tiktokInfoBar" style="color:#f472b6;font-size:0.82em">-</span>
+    <span id="nextTiktok" style="color:#f472b6">-</span>
   </div>
 
   <!-- Scheduler Status -->
@@ -1576,6 +1547,20 @@
             <span class="hint">Quando o manifest nao tem descricao, usa IA para gerar</span>
           </div>
           <div class="config-field">
+            <label>Max clips por rodada</label>
+            <input type="number" id="cfgImportPubMax" min="1" max="10" value="1" style="width:60px">
+            <span class="hint">Quantos clips de import publicar por horario</span>
+          </div>
+          <div class="config-field">
+            <label>Privacidade imports</label>
+            <select id="cfgImportPrivacy">
+              <option value="">Usar padrao</option>
+              <option value="unlisted">Unlisted</option>
+              <option value="public">Public</option>
+              <option value="private">Private</option>
+            </select>
+          </div>
+          <div class="config-field">
             <label>Agendamento de publicacao</label>
             <select name="import_fila_global" onchange="toggleImportHorarios(this.value)">
               <option value="true">Fila global (pub_horarios)</option>
@@ -1699,8 +1684,45 @@
     <!-- Tab: TikTok -->
     <div class="config-tab-content" id="cfgTab_tiktok">
       <div class="config-section">
-        <h3>TikTok Scanner</h3>
-        <p style="color:var(--muted);font-size:0.82em;margin-bottom:12px">Importa videos de canais TikTok automaticamente para a fila de imports.</p>
+        <h3>Publicacao TikTok</h3>
+        <div class="config-grid" style="grid-template-columns: 1fr 1fr;">
+          <div class="config-field">
+            <label>Max clips por rodada</label>
+            <input type="number" id="cfgTiktokPubMax" min="1" max="10" value="1" style="width:60px">
+            <span class="hint">Quantos clips de TikTok publicar por horario</span>
+          </div>
+          <div class="config-field">
+            <label>Privacidade TikTok</label>
+            <select id="cfgTiktokPrivacy">
+              <option value="">Usar padrao</option>
+              <option value="unlisted">Unlisted</option>
+              <option value="public">Public</option>
+              <option value="private">Private</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="config-section">
+        <h3>Horarios de Publicacao</h3>
+        <div class="hour-picker-header">
+          <label>Selecione os horarios de publicacao (clique para ativar/desativar)</label>
+          <div class="hour-picker-actions">
+            <button onclick="hourPickerSelectAll('tiktokPub')">Todas</button>
+            <button onclick="hourPickerClearAll('tiktokPub')">Limpar</button>
+          </div>
+        </div>
+        <div class="hour-picker" id="tiktokPubHourPicker"></div>
+        <div class="hour-summary" id="tiktokPubSummary"></div>
+        <div style="margin-top:8px;display:flex;align-items:center;gap:8px;">
+          <label style="font-size:0.85em;color:var(--muted)">Minuto exato:</label>
+          <input type="number" id="cfgTiktokPubMinuto" min="0" max="59" value="0" style="width:60px">
+        </div>
+      </div>
+
+      <div class="config-section">
+        <h3>Scanner TikTok</h3>
+        <p style="color:var(--muted);font-size:0.82em;margin-bottom:12px">Importa videos de canais TikTok automaticamente.</p>
         <div class="config-grid" style="grid-template-columns: 1fr 1fr;">
           <div class="config-field">
             <label>Scan automatico</label>
@@ -1715,7 +1737,7 @@
       <div class="config-section">
         <h3>Horarios de Scan</h3>
         <div class="hour-picker-header">
-          <label>Selecione os horarios (clique para ativar/desativar)</label>
+          <label>Selecione os horarios de scan (clique para ativar/desativar)</label>
           <div class="hour-picker-actions">
             <button onclick="hourPickerSelectAll('tiktok')">Todas</button>
             <button onclick="hourPickerClearAll('tiktok')">Limpar</button>
@@ -2006,6 +2028,8 @@ async function saveImports(btn) {
   const data = {
     import_auto:             getSelect('import_auto'),
     import_gerar_descricao:  getSelect('import_gerar_descricao'),
+    import_pub_max_por_vez:  document.getElementById('cfgImportPubMax').value,
+    import_privacy:          document.getElementById('cfgImportPrivacy').value,
     import_fila_global:      getSelect('import_fila_global'),
     import_pub_horarios:     hoursToString('import'),
     import_minuto:           document.getElementById('cfgImportMinuto').value,
@@ -2042,6 +2066,10 @@ async function saveEnrich(btn) {
 async function saveTiktok(btn) {
   const data = {
     tiktok_auto: document.getElementById('cfgTiktokAuto').value,
+    tiktok_pub_max_por_vez: document.getElementById('cfgTiktokPubMax').value,
+    tiktok_privacy:         document.getElementById('cfgTiktokPrivacy').value,
+    tiktok_pub_horarios: hoursToString('tiktokPub'),
+    tiktok_pub_minuto: document.getElementById('cfgTiktokPubMinuto').value,
     tiktok_horarios: hoursToString('tiktok'),
     tiktok_minuto: document.getElementById('cfgTiktokMinuto').value,
   };
@@ -2657,7 +2685,7 @@ function highlightPreset(name) {
 }
 
 // --- Hour Picker ---
-const hourState = { pub: new Set(), corte: new Set(), import: new Set(), enrich: new Set(), tiktok: new Set() };
+const hourState = { pub: new Set(), corte: new Set(), import: new Set(), enrich: new Set(), tiktok: new Set(), tiktokPub: new Set() };
 
 function buildHourPicker(name) {
   const container = document.getElementById(name + 'HourPicker');
@@ -2700,6 +2728,7 @@ document.getElementById('cfgPubMinuto').addEventListener('input', () => updateHo
 document.getElementById('cfgImportMinuto').addEventListener('input', () => updateHourSummary('import'));
 document.getElementById('cfgEnrichMinuto').addEventListener('input', () => updateHourSummary('enrich'));
 document.getElementById('cfgTiktokMinuto').addEventListener('input', () => updateHourSummary('tiktok'));
+document.getElementById('cfgTiktokPubMinuto').addEventListener('input', () => updateHourSummary('tiktokPub'));
 
 function hourPickerSelectAll(name) {
   for (let h = 0; h < 24; h++) hourState[name].add(h);
@@ -2878,6 +2907,12 @@ async function loadStats() {
   document.getElementById('statTiktokPend').textContent = data.tiktok_pend || 0;
   document.getElementById('statTiktokErro').textContent = data.tiktok_erro || 0;
 
+  // 24h stats
+  document.getElementById('statLives24h').textContent = data.cortados_24h || 0;
+  document.getElementById('statClips24h').textContent = data.clips_24h || 0;
+  document.getElementById('statImports24h').textContent = data.imports_24h || 0;
+  document.getElementById('statTiktok24h').textContent = data.tiktok_24h || 0;
+
   // TikTok info bar
   try {
     const tkResp = await fetchJson('/api/tiktok/channels');
@@ -2891,6 +2926,12 @@ async function loadStats() {
 function showImportFilter(status) {
   showTab('publicados', document.querySelector('.tab[data-tab="publicados"]'), status);
   document.getElementById('pubOrigem').value = 'import';
+  filterPubs();
+}
+
+function showTiktokFilter(status) {
+  showTab('publicados', document.querySelector('.tab[data-tab="publicados"]'), status);
+  document.getElementById('pubOrigem').value = 'tiktok';
   filterPubs();
 }
 
@@ -2967,7 +3008,7 @@ function showLivesView(view) {
   document.getElementById('livesSearch').value = '';
   if (view === 'todas') {
     document.getElementById('livesStatus').value = '';
-    document.getElementById('livesOrder').value = 'oldest';
+    document.getElementById('livesOrder').value = 'newest';
   } else if (view === 'ultimas') {
     document.getElementById('livesStatus').value = 'concluido';
     document.getElementById('livesOrder').value = 'newest';
@@ -3164,7 +3205,7 @@ function filterPubs() {
     }
     if (privacy && p._status === 'publicado' && p.privacy !== privacy) return false;
     const isImport = (p.live_video_id || '').startsWith('import_');
-    const isTiktok = isImport && (p.live_titulo || '').startsWith('TikTok @');
+    const isTiktok = isImport && ((p.live_titulo || '').startsWith('TikTok @') || (p.live_video_id || '').includes('tiktok'));
     if (origem === 'tiktok' && !isTiktok) return false;
     if (origem === 'import' && (!isImport || isTiktok)) return false;
     if (origem === 'live' && isImport) return false;
@@ -3304,6 +3345,8 @@ async function loadConfig() {
   // Salva horarios para exibir proximos
   window._cfgCorteHorarios = c.corte_horarios || '';
   window._cfgPubHorarios = c.pub_horarios || '';
+  window._cfgImportHorarios = c.import_pub_horarios || '';
+  window._cfgTiktokPubHorarios = c.tiktok_pub_horarios || '';
   updateNextSchedules();
 
   // Helper para setar valor seguro
@@ -3373,11 +3416,15 @@ async function loadConfig() {
   syncAutoActive = c.sync_auto === 'true';
   updatePipelineBtns();
   updateAutoSyncBtn();
+  const syncDateFromEl = document.getElementById('syncAutoDateFrom');
+  if (syncDateFromEl) syncDateFromEl.value = c.sync_auto_date_from || '';
 
   // Imports
   const setSelect = (name, val) => { const el = document.querySelector(`[name="${name}"]`); if (el && val) el.value = val; };
   setSelect('import_auto', c.import_auto);
   setSelect('import_gerar_descricao', c.import_gerar_descricao);
+  if (c.import_pub_max_por_vez) document.getElementById('cfgImportPubMax').value = c.import_pub_max_por_vez;
+  if (c.import_privacy) document.getElementById('cfgImportPrivacy').value = c.import_privacy;
   setSelect('import_fila_global', c.import_fila_global);
   if (c.import_pub_horarios) {
     hourState.import = stringToHours(c.import_pub_horarios);
@@ -3419,6 +3466,11 @@ async function loadConfig() {
 
   // TikTok
   if (c.tiktok_auto) document.getElementById('cfgTiktokAuto').value = c.tiktok_auto;
+  if (c.tiktok_pub_max_por_vez) document.getElementById('cfgTiktokPubMax').value = c.tiktok_pub_max_por_vez;
+  if (c.tiktok_privacy) document.getElementById('cfgTiktokPrivacy').value = c.tiktok_privacy;
+  hourState.tiktokPub = stringToHours(c.tiktok_pub_horarios || '');
+  buildHourPicker('tiktokPub');
+  if (c.tiktok_pub_minuto) document.getElementById('cfgTiktokPubMinuto').value = c.tiktok_pub_minuto;
   hourState.tiktok = stringToHours(c.tiktok_horarios || '');
   buildHourPicker('tiktok');
   if (c.tiktok_minuto) document.getElementById('cfgTiktokMinuto').value = c.tiktok_minuto;
@@ -3572,6 +3624,37 @@ async function quickSync() {
   }
 }
 
+async function syncFromUrl(btn) {
+  const input = document.getElementById('syncUrlInput');
+  const msg = document.getElementById('syncUrlMsg');
+  const url = input.value.trim();
+  if (!url) { msg.textContent = 'Cole o link do video do YouTube'; msg.style.color = 'var(--red)'; return; }
+  if (btn) { btn.textContent = 'Importando...'; btn.disabled = true; }
+  msg.textContent = 'Importando video...';
+  msg.style.color = 'var(--muted)';
+  try {
+    const resp = await fetchJson('/api/sync/url', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ url })
+    });
+    if (resp.ok) {
+      msg.textContent = `Importado: ${resp.titulo || resp.video_id}`;
+      msg.style.color = 'var(--green)';
+      input.value = '';
+      loadAll();
+    } else {
+      msg.textContent = 'Erro: ' + (resp.error || 'desconhecido');
+      msg.style.color = 'var(--red)';
+    }
+  } catch (e) {
+    msg.textContent = 'Erro: ' + e;
+    msg.style.color = 'var(--red)';
+  } finally {
+    if (btn) { btn.textContent = 'Importar Video'; btn.disabled = false; }
+  }
+}
+
 async function syncLives() {
   const btn = document.getElementById('btnSyncRun');
   btn.disabled = true;
@@ -3644,6 +3727,25 @@ function updateAutoSyncBtn() {
     btn.className = 'secondary small';
     btn.style.background = '';
     btn.style.color = '';
+  }
+}
+
+async function saveSyncAutoDateFrom() {
+  const el = document.getElementById('syncAutoDateFrom');
+  const val = (el.value || '').trim();
+  if (val && !/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+    showToast('Data invalida. Use YYYY-MM-DD ou deixe vazio.', 'error');
+    return;
+  }
+  try {
+    await fetchJson('/api/config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({sync_auto_date_from: val})
+    });
+    showToast(val ? `Auto-sync filtrara a partir de ${val}` : 'Filtro de data do auto-sync removido');
+  } catch (e) {
+    showToast('Erro: ' + e.message, 'error');
   }
 }
 
@@ -3796,8 +3898,12 @@ function updateNextSchedules() {
 
   const corteEl = document.getElementById('nextCorte');
   const pubEl = document.getElementById('nextPub');
+  const importEl = document.getElementById('nextImport');
+  const tiktokEl = document.getElementById('nextTiktok');
   if (window._cfgCorteHorarios !== undefined) corteEl.textContent = findNext(window._cfgCorteHorarios);
   if (window._cfgPubHorarios !== undefined) pubEl.textContent = findNext(window._cfgPubHorarios);
+  if (window._cfgImportHorarios !== undefined) importEl.textContent = findNext(window._cfgImportHorarios);
+  if (window._cfgTiktokPubHorarios !== undefined) tiktokEl.textContent = findNext(window._cfgTiktokPubHorarios);
 }
 setInterval(updateNextSchedules, 30000);
 
@@ -4097,6 +4203,18 @@ loadAll();
       <button onclick="closeModal('modalChangelog')" style="background:none;border:none;color:var(--muted);font-size:1.2em;cursor:pointer">X</button>
     </div>
     <div class="modal-body" style="padding:16px;overflow-y:auto;font-size:0.85em;line-height:1.8">
+      <h3 style="color:var(--accent);margin-bottom:8px">v3.23.25</h3>
+      <p style="color:var(--muted);margin-bottom:4px"><strong>Fixes:</strong></p>
+      <ul style="margin:0 0 16px 20px;color:var(--text)">
+        <li>Fix: clips_pendentes nunca decrementava apos publicacao (imports mostravam pendentes fantasma)</li>
+        <li>Recalculo de clips_publicados e clips_pendentes com base na tabela publicados real</li>
+      </ul>
+      <p style="color:var(--muted);margin-bottom:4px"><strong>Features:</strong></p>
+      <ul style="margin:0 0 16px 20px;color:var(--text)">
+        <li>Auto-sync com filtro de data: novo campo "A partir de" ao lado do botao Auto-sync</li>
+        <li>Auto-sync a meia-noite so considera lives publicadas a partir da data configurada (evita reimportacao de todo o historico do canal)</li>
+      </ul>
+
       <h3 style="color:var(--accent);margin-bottom:8px">v3.21.25</h3>
       <p style="color:var(--muted);margin-bottom:4px"><strong>Features:</strong></p>
       <ul style="margin:0 0 16px 20px;color:var(--text)">

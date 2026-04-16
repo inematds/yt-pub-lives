@@ -40,12 +40,13 @@ def scan_channel(channel):
     data_desde = channel.get('data_desde', '')
     max_videos = channel.get('max_por_scan', 2)
 
-    log(f'  Scanning TikTok: {handle}')
+    log(f'  Scanning TikTok: {handle} (desde={data_desde})')
 
+    # Scan a generous window: 200 videos max to find new ones that aren't downloaded yet
     try:
         result = subprocess.run(
-            ['yt-dlp', '--flat-playlist', '-j', '--no-warnings', '--playlist-end', str(max_videos * 3), url],
-            capture_output=True, text=True, timeout=300
+            ['yt-dlp', '--flat-playlist', '-j', '--no-warnings', '--playlist-end', '200', url],
+            capture_output=True, text=True, timeout=600
         )
         if result.returncode != 0:
             log(f'  yt-dlp erro: {result.stderr[:200]}')
@@ -55,6 +56,10 @@ def scan_channel(channel):
         return []
 
     videos = []
+    total_scanned = 0
+    total_before_date = 0
+    total_already_dl = 0
+
     for line in result.stdout.strip().split('\n'):
         if not line.strip():
             continue
@@ -67,15 +72,19 @@ def scan_channel(channel):
         if not vid_id:
             continue
 
+        total_scanned += 1
+
         # Filter by date
         upload_date = info.get('upload_date', '')  # YYYYMMDD format
         if data_desde and upload_date:
             desde_fmt = data_desde.replace('-', '')
             if upload_date < desde_fmt:
+                total_before_date += 1
                 continue
 
         # Skip already downloaded
         if db.is_tiktok_downloaded(vid_id):
+            total_already_dl += 1
             continue
 
         videos.append({
@@ -86,23 +95,34 @@ def scan_channel(channel):
             'duration': info.get('duration', 0),
         })
 
-    # Limit to max_por_scan (oldest first)
+    # Sort oldest first (so we process in chronological order)
     videos.sort(key=lambda v: v.get('upload_date', ''))
     videos = videos[:max_videos]
 
-    log(f'  {len(videos)} video(s) novo(s) encontrado(s) para {handle}')
+    log(f'  Scan: {total_scanned} escaneados, {total_already_dl} ja baixados, {total_before_date} antes de {data_desde}, {len(videos)} selecionados')
     return videos
 
 
 def download_videos(videos, channel):
-    """Download TikTok videos and create import folder with manifest.
+    """Download TikTok videos into a daily folder and update manifest.
     Returns dict: {folder, downloaded, errors}
     """
     handle = channel['handle'].strip().lstrip('@')
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    folder_name = f'tiktok_{handle}_{timestamp}'
+    today = datetime.now().strftime('%Y%m%d')
+    folder_name = f'tiktok_{handle}_{today}'
     folder_path = os.path.join(IMPORTS_DIR, folder_name)
     os.makedirs(folder_path, exist_ok=True)
+
+    # Load existing manifest if folder already has one (appending to daily batch)
+    manifest_path = os.path.join(folder_path, 'manifest.json')
+    existing_clips = []
+    if os.path.exists(manifest_path):
+        try:
+            with open(manifest_path) as f:
+                raw = json.load(f)
+            existing_clips = raw.get('clips', []) if isinstance(raw, dict) else raw
+        except Exception:
+            pass
 
     downloaded = []
     errors = 0
@@ -111,6 +131,10 @@ def download_videos(videos, channel):
         vid_id = video['id']
         title = video['title'] or f'tiktok_{vid_id}'
         video_url = video['url']
+
+        # Skip if already in this folder
+        if any(vid_id in c.get('file', '') for c in existing_clips):
+            continue
 
         log(f'  Baixando: {title[:50]} ({vid_id})')
 
@@ -157,22 +181,22 @@ def download_videos(videos, channel):
             log(f'  Erro ao baixar {vid_id}: {e}')
             errors += 1
 
-    # Create manifest.json for import_worker
+    # Update manifest (append new clips to existing)
     if downloaded:
+        all_clips = existing_clips + [
+            {
+                'file': d['file'],
+                'title': d['title'],
+                'description': '',
+                'tags': ['tiktok', handle],
+            }
+            for d in downloaded
+        ]
         manifest = {
             'titulo': f'TikTok @{handle}',
             'privacy': 'public',
-            'clips': [
-                {
-                    'file': d['file'],
-                    'title': d['title'],
-                    'description': '',
-                    'tags': ['tiktok', handle],
-                }
-                for d in downloaded
-            ]
+            'clips': all_clips
         }
-        manifest_path = os.path.join(folder_path, 'manifest.json')
         with open(manifest_path, 'w') as f:
             json.dump(manifest, f, ensure_ascii=False, indent=2)
         log(f'  Manifest criado: {folder_name} ({len(downloaded)} clips)')

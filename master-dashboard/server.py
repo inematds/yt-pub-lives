@@ -60,6 +60,8 @@ INSTANCES = [
     {'id': 5, 'name': 'lives5', 'path': '/home/nmaldaner/projetos/yt-pub-lives5', 'port': 8095, 'scheduler_svc': 'yt-scheduler5', 'dashboard_svc': 'yt-dashboard5'},
     {'id': 6, 'name': 'lives6', 'path': '/home/nmaldaner/projetos/yt-pub-lives6', 'port': 8096, 'scheduler_svc': 'yt-scheduler6', 'dashboard_svc': 'yt-dashboard6'},
     {'id': 7, 'name': 'lives7', 'path': '/home/nmaldaner/projetos/yt-pub-lives7', 'port': 8097, 'scheduler_svc': 'yt-scheduler7', 'dashboard_svc': 'yt-dashboard7'},
+    {'id': 8, 'name': 'lives8', 'path': '/home/nmaldaner/projetos/yt-pub-lives8', 'port': 8098, 'scheduler_svc': 'yt-scheduler8', 'dashboard_svc': 'yt-dashboard8'},
+    {'id': 9, 'name': 'lives9', 'path': '/home/nmaldaner/projetos/yt-pub-lives9', 'port': 8099, 'scheduler_svc': 'yt-scheduler9', 'dashboard_svc': 'yt-dashboard9'},
 ]
 
 # Estado global do heartbeat
@@ -119,10 +121,31 @@ def get_db_stats(instance_path):
         cur.execute("SELECT COUNT(*) FROM publicados WHERE clip_video_id IS NOT NULL AND clip_video_id != '' AND clip_video_id NOT LIKE 'erro%'")
         total_pub = cur.fetchone()[0]
 
-        # Publicados ultimas 24h
+        # Publicados ultimas 24h (total e por tipo)
         since_24h = (datetime.now() - timedelta(hours=24)).strftime('%Y-%m-%d %H:%M')
         cur.execute("SELECT COUNT(*) FROM publicados WHERE data_publicacao >= ? AND clip_video_id IS NOT NULL AND clip_video_id != '' AND clip_video_id NOT LIKE 'erro%'", (since_24h,))
         pub_hoje = cur.fetchone()[0]
+
+        # Por tipo nas 24h
+        cur.execute("""
+            SELECT p.live_video_id, l.titulo
+            FROM publicados p LEFT JOIN lives l ON p.live_video_id = l.video_id
+            WHERE p.data_publicacao >= ? AND p.clip_video_id IS NOT NULL
+            AND p.clip_video_id != '' AND p.clip_video_id NOT LIKE 'erro%'
+        """, (since_24h,))
+        clips_24h = 0
+        imports_24h = 0
+        tiktok_24h = 0
+        for r in cur.fetchall():
+            live_vid = r[0] or ''
+            live_titulo = r[1] or ''
+            if live_vid.startswith('import_'):
+                if live_titulo.startswith('TikTok @'):
+                    tiktok_24h += 1
+                else:
+                    imports_24h += 1
+            else:
+                clips_24h += 1
 
         # Último publicado
         cur.execute("SELECT clip_titulo, data_publicacao, clip_video_id FROM publicados WHERE clip_video_id IS NOT NULL AND clip_video_id != '' AND clip_video_id NOT LIKE 'erro%' ORDER BY data_publicacao DESC LIMIT 1")
@@ -157,8 +180,8 @@ def get_db_stats(instance_path):
         cur.execute("SELECT COUNT(*) FROM lives WHERE status_cortes='erro'")
         lives_erro = cur.fetchone()[0]
 
-        # Clips stats
-        cur.execute("SELECT COALESCE(SUM(CAST(qtd_clips AS INTEGER)),0) FROM lives")
+        # Clips stats (exclui imports — imports tem contagem propria)
+        cur.execute("SELECT COALESCE(SUM(CAST(qtd_clips AS INTEGER)),0) FROM lives WHERE video_id NOT LIKE 'import_%'")
         total_clips = cur.fetchone()[0]
 
         cur.execute("SELECT COUNT(*) FROM publicados WHERE live_video_id NOT LIKE 'import_%' AND clip_video_id NOT IN ('erro_upload','publicando','') AND clip_video_id != ''")
@@ -166,21 +189,7 @@ def get_db_stats(instance_path):
 
         clips_pendentes = max(0, total_clips - clips_publicados)
 
-        # Imports stats — lê da tabela publicados (igual ao dashboard individual)
-        cur.execute("SELECT COUNT(*) FROM lives WHERE video_id LIKE 'import_%'")
-        imports_total = cur.fetchone()[0]
-
-        cur.execute("SELECT COUNT(*) FROM publicados WHERE live_video_id LIKE 'import_%' AND clip_video_id NOT IN ('erro_upload','publicando','') AND clip_video_id != ''")
-        imports_pub = cur.fetchone()[0]
-
-        cur.execute("SELECT COUNT(*) FROM publicados WHERE live_video_id LIKE 'import_%' AND clip_video_id='erro_upload'")
-        imports_erro = cur.fetchone()[0]
-
-        cur.execute("SELECT COALESCE(SUM(CAST(qtd_clips AS INTEGER)),0) FROM lives WHERE video_id LIKE 'import_%'")
-        imports_clips_total = cur.fetchone()[0]
-        imports_pend = max(0, imports_clips_total - imports_pub - imports_erro)
-
-        # TikTok stats (subset of imports where titulo starts with 'TikTok @')
+        # TikTok stats (imports where titulo starts with 'TikTok @')
         cur.execute("SELECT video_id FROM lives WHERE video_id LIKE 'import_%' AND titulo LIKE 'TikTok @%'")
         tiktok_ids = {r[0] for r in cur.fetchall()}
         tiktok_total = len(tiktok_ids)
@@ -197,6 +206,22 @@ def get_db_stats(instance_path):
         cur.execute("SELECT COALESCE(SUM(CAST(qtd_clips AS INTEGER)),0) FROM lives WHERE video_id LIKE 'import_%' AND titulo LIKE 'TikTok @%'")
         tiktok_clips_total = cur.fetchone()[0]
         tiktok_pend = max(0, tiktok_clips_total - tiktok_pub - tiktok_erro)
+
+        # Imports stats (excluding TikTok)
+        cur.execute("SELECT COUNT(*) FROM lives WHERE video_id LIKE 'import_%' AND titulo NOT LIKE 'TikTok @%'")
+        imports_total = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(*) FROM publicados WHERE live_video_id LIKE 'import_%' AND clip_video_id NOT IN ('erro_upload','publicando','') AND clip_video_id != ''")
+        imports_pub_all = cur.fetchone()[0]
+        imports_pub = imports_pub_all - tiktok_pub
+
+        cur.execute("SELECT COUNT(*) FROM publicados WHERE live_video_id LIKE 'import_%' AND clip_video_id='erro_upload'")
+        imports_erro_all = cur.fetchone()[0]
+        imports_erro = imports_erro_all - tiktok_erro
+
+        cur.execute("SELECT COALESCE(SUM(CAST(qtd_clips AS INTEGER)),0) FROM lives WHERE video_id LIKE 'import_%' AND titulo NOT LIKE 'TikTok @%'")
+        imports_clips_total = cur.fetchone()[0]
+        imports_pend = max(0, imports_clips_total - imports_pub - imports_erro)
 
         # Cortados ultimas 24h
         cur.execute("SELECT COUNT(*) FROM lives WHERE data_corte >= ?", (since_24h,))
@@ -262,10 +287,19 @@ def get_db_stats(instance_path):
         pub_previsao_dia = len(pub_list) * int(pub_max)
         corte_list = [h.strip() for h in corte_horarios.split(',') if h.strip()]
 
+        # TikTok channels (handles ativos)
+        tiktok_handles = []
+        try:
+            cur.execute("SELECT handle FROM tiktok_channels WHERE ativo=1")
+            tiktok_handles = [r[0] for r in cur.fetchall()]
+        except Exception:
+            pass
+
         conn.close()
         return {
             'canal_url': canal_url,
             'canal_nome': canal_nome,
+            'tiktok_handles': tiktok_handles,
             'total_lives': total_lives,
             'total_clips': total_clips,
             'clips_publicados': clips_publicados,
@@ -278,6 +312,9 @@ def get_db_stats(instance_path):
             'total_cortados': total_cortados,
             'pendentes_corte': pendentes_corte,
             'publicados_hoje': pub_hoje,
+            'clips_24h': clips_24h,
+            'imports_24h': imports_24h,
+            'tiktok_24h': tiktok_24h,
             'cortados_hoje': cortados_hoje,
             'ultimo_publicado': ultimo,
             'erros': erros,

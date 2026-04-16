@@ -163,6 +163,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
         if post_path == '/api/sync':
             self.handle_sync(data)
+        elif post_path == '/api/sync/url':
+            self.handle_sync_url(data)
         elif post_path == '/api/config':
             self.handle_update_config(data)
         elif post_path == '/api/clip/privacy':
@@ -882,24 +884,24 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
     def handle_api_config(self):
         config = db.load_config()
+        to_save = {}
 
         # Add canal info from env/YouTube API
         channel_id = os.environ.get('YOUTUBE_CHANNEL_ID', '')
         if channel_id and 'canal_origem_nome' not in config:
             config['canal_origem_id'] = channel_id
             config['canal_origem_url'] = f'https://www.youtube.com/channel/{channel_id}'
-            try:
-                details = get_video_details([])  # dummy to avoid, use channel API instead
-            except Exception:
-                pass
-            # Try to get channel name from YouTube API
+            to_save['canal_origem_id'] = channel_id
+            to_save['canal_origem_url'] = config['canal_origem_url']
             try:
                 result = youtube_api('channels', {'part': 'snippet', 'id': channel_id})
                 items = result.get('items', [])
                 if items:
                     config['canal_origem_nome'] = items[0]['snippet']['title']
+                    to_save['canal_origem_nome'] = config['canal_origem_nome']
             except Exception:
                 config['canal_origem_nome'] = channel_id
+                to_save['canal_origem_nome'] = channel_id
 
         # Canal destino = authenticated channel
         if 'canal_destino_nome' not in config:
@@ -913,8 +915,15 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     config['canal_destino_id'] = items[0]['id']
                     config['canal_destino_nome'] = items[0]['snippet']['title']
                     config['canal_destino_url'] = f'https://www.youtube.com/channel/{items[0]["id"]}'
+                    to_save['canal_destino_id'] = config['canal_destino_id']
+                    to_save['canal_destino_nome'] = config['canal_destino_nome']
+                    to_save['canal_destino_url'] = config['canal_destino_url']
             except Exception:
                 pass
+
+        # Persist in database so master dashboard can read it
+        if to_save:
+            db.update_config(to_save)
 
         self.send_json(200, {'config': config})
 
@@ -970,10 +979,11 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             pub = int(live.get('clips_publicados', '0') or '0')
 
             if is_import:
-                imports_total += 1
                 import_ids.add(vid)
                 if is_tiktok:
                     tiktok_ids.add(vid)
+                else:
+                    imports_total += 1
             else:
                 total_lives += 1
                 total_clips += qtd
@@ -984,13 +994,20 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 else:
                     pendentes += 1
 
-        # Clips stats
+        # Clips stats (separate lives, imports, tiktok)
         clips_erro = 0
+        tiktok_pub = 0
+        tiktok_erro = 0
         for pub in pub_list:
             vid_status = pub.get('clip_video_id', '')
             live_vid = pub.get('live_video_id', '')
             is_err = vid_status in ('erro_upload', 'publicando', '')
-            if live_vid in import_ids:
+            if live_vid in tiktok_ids:
+                if is_err:
+                    tiktok_erro += 1
+                else:
+                    tiktok_pub += 1
+            elif live_vid in import_ids:
                 if is_err:
                     imports_clips_erro += 1
                 else:
@@ -1009,7 +1026,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 pub_titles_by_live.setdefault(lid, set()).add(pub.get('clip_titulo', ''))
 
         lives_dir = os.environ.get('LIVES_DIR', os.path.join(PROJECT_ROOT, 'lives'))
-        for vid in import_ids:
+        import_only_ids = import_ids - tiktok_ids
+        for vid in import_only_ids:
             manifest_path = os.path.join(lives_dir, vid, 'clips_manifest.json')
             if os.path.exists(manifest_path):
                 try:
@@ -1028,26 +1046,40 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             import_motivo = 'pausado'
         elif not config.get('import_pub_horarios', '').strip():
             import_motivo = 'sem horario'
-        elif imports_total == 0:
+        elif imports_total == 0 and imports_clips_pend > 0:
             import_motivo = 'fila vazia'
 
-        # TikTok stats (subset of imports)
+        # TikTok stats
         tiktok_total = len(tiktok_ids)
-        tiktok_pub = 0
-        tiktok_erro = 0
-        for pub in pub_list:
-            live_vid = pub.get('live_video_id', '')
-            if live_vid in tiktok_ids:
-                vid_status = pub.get('clip_video_id', '')
-                if vid_status in ('erro_upload', 'publicando', ''):
-                    tiktok_erro += 1
-                else:
-                    tiktok_pub += 1
         tiktok_clips_total = sum(
             int(l.get('qtd_clips', '0') or '0')
             for l in lives_list if l.get('video_id', '') in tiktok_ids
         )
         tiktok_pend = max(0, tiktok_clips_total - tiktok_pub - tiktok_erro)
+
+        # Publicados nas ultimas 24h por tipo
+        from datetime import datetime as _dt, timedelta
+        since_24h = (_dt.now() - timedelta(hours=24)).strftime('%Y-%m-%d %H:%M')
+        clips_24h = 0
+        imports_24h = 0
+        tiktok_24h = 0
+        cortados_24h = 0
+        for pub in pub_list:
+            if pub.get('data_publicacao', '') < since_24h:
+                continue
+            vid_status = pub.get('clip_video_id', '')
+            if vid_status in ('erro_upload', 'publicando', ''):
+                continue
+            live_vid = pub.get('live_video_id', '')
+            if live_vid in tiktok_ids:
+                tiktok_24h += 1
+            elif live_vid in import_ids:
+                imports_24h += 1
+            else:
+                clips_24h += 1
+        for live in lives_list:
+            if live.get('data_corte', '') >= since_24h and live.get('status_cortes') == 'concluido':
+                cortados_24h += 1
 
         self.send_json(200, {
             'instance_name': os.environ.get('INSTANCE_NAME', 'yt-pub-lives'),
@@ -1067,7 +1099,64 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             'tiktok_pub': tiktok_pub,
             'tiktok_pend': tiktok_pend,
             'tiktok_erro': tiktok_erro,
+            'cortados_24h': cortados_24h,
+            'clips_24h': clips_24h,
+            'imports_24h': imports_24h,
+            'tiktok_24h': tiktok_24h,
         })
+
+    def handle_sync_url(self, data):
+        """Import a single YouTube video by URL into the lives database."""
+        import re
+        url = data.get('url', '').strip()
+        if not url:
+            self.send_json(400, {'error': 'url required'})
+            return
+
+        m = re.search(r'(?:v=|youtu\.be/|shorts/)([a-zA-Z0-9_-]{11})', url)
+        if not m:
+            self.send_json(400, {'error': 'URL invalida — nao encontrei video ID'})
+            return
+        vid = m.group(1)
+
+        existing = db.get_live(vid)
+        if existing:
+            self.send_json(200, {'ok': True, 'video_id': vid, 'titulo': existing.get('titulo', ''), 'message': 'ja existe no banco'})
+            return
+
+        try:
+            details = get_video_details([vid])
+            items = details.get('items', [])
+            if not items:
+                self.send_json(404, {'error': f'Video {vid} nao encontrado no YouTube'})
+                return
+
+            item = items[0]
+            snippet = item.get('snippet', {})
+            titulo = snippet.get('title', '')
+            pub_date = snippet.get('publishedAt', '')[:10]
+            dur_str = item.get('contentDetails', {}).get('duration', '')
+            dur_min = str(parse_duration_minutes(dur_str))
+
+            today = __import__('datetime').date.today().isoformat()
+            db.add_lives([{
+                'video_id': vid,
+                'titulo': titulo,
+                'data_live': pub_date,
+                'duracao_min': dur_min,
+                'url': f'https://www.youtube.com/watch?v={vid}',
+                'status_transcricao': 'pendente',
+                'status_cortes': 'pendente',
+                'qtd_clips': '0',
+                'clips_publicados': '0',
+                'clips_pendentes': '0',
+                'data_sync': today,
+                'observacoes': '',
+            }])
+
+            self.send_json(200, {'ok': True, 'video_id': vid, 'titulo': titulo, 'duracao_min': dur_min})
+        except Exception as e:
+            self.send_json(500, {'error': str(e)})
 
     def handle_sync(self, data):
         """Sync lives from YouTube channel.
@@ -1519,7 +1608,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
 
     def handle_clip_retry(self, data):
-        """Remove erro_upload entry and re-publish the clip."""
+        """Remove erro_upload entry so the scheduler picks it up in the normal queue."""
         live_id = data.get('live_video_id', '')
         title = data.get('title', '')
         if not live_id or not title:
@@ -1531,77 +1620,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_json(404, {'error': 'no erro_upload found for this clip'})
             return
 
-        lives_dir = os.environ.get('LIVES_DIR', os.path.join(PROJECT_ROOT, 'lives'))
-        manifest_path = os.path.join(lives_dir, live_id, 'clips_manifest.json')
-        if not os.path.exists(manifest_path):
-            self.send_json(404, {'error': 'manifest not found'})
-            return
-
-        with open(manifest_path) as f:
-            clips = json.load(f)
-
-        clip = next((c for c in clips if c.get('title') == title), None)
-        if not clip:
-            self.send_json(404, {'error': 'clip not found in manifest'})
-            return
-
-        if not os.path.exists(clip['file']):
-            self.send_json(404, {'error': f'clip file not found: {clip["file"]}'})
-            return
-
-        import threading
-        def do_retry():
-            sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
-            from scheduler import run_publicacao, load_config, handle_thumbnail, refine_pub_with_ai, update_status
-
-            config = load_config()
-            privacy = config.get('privacy_padrao', 'unlisted')
-
-            clip_title = clip['title']
-            clip_desc = clip.get('description', '')
-            clip_title, clip_desc = refine_pub_with_ai(clip_title, clip_desc, config, video_id=live_id)
-
-            if config.get('pub_link_live', 'true') == 'true':
-                clip_desc += f'\n\nLive original: https://www.youtube.com/watch?v={live_id}'
-
-            update_status('publicando', f'Retry: {clip_title[:50]}', live_id, step='upload', clip_title=clip_title[:50])
-            new_vid = run_publicacao(live_id, clip['file'], clip_title, clip_desc, ','.join(clip.get('tags', [])), privacy)
-
-            from datetime import datetime
-            now = datetime.now().strftime('%Y-%m-%d %H:%M')
-
-            if new_vid:
-                handle_thumbnail(new_vid, clip_title, clip.get('description', ''), config)
-                db.add_publicado({
-                    'clip_video_id': new_vid,
-                    'clip_titulo': clip['title'],
-                    'clip_url': f'https://www.youtube.com/watch?v={new_vid}',
-                    'live_video_id': live_id,
-                    'live_titulo': '',
-                    'data_publicacao': now,
-                    'privacy': privacy,
-                    'duracao': str(clip.get('duration', '')),
-                    'tags': ','.join(clip.get('tags', [])),
-                    'categoria': '27'
-                })
-                update_status('idle', f'Retry OK: {clip_title[:50]}')
-            else:
-                db.add_publicado({
-                    'clip_video_id': 'erro_upload',
-                    'clip_titulo': clip['title'],
-                    'clip_url': '',
-                    'live_video_id': live_id,
-                    'live_titulo': '',
-                    'data_publicacao': now,
-                    'privacy': privacy,
-                    'duracao': str(clip.get('duration', '')),
-                    'tags': ','.join(clip.get('tags', [])),
-                    'categoria': '27'
-                })
-                update_status('idle', f'Retry falhou: {clip_title[:50]}')
-
-        threading.Thread(target=do_retry, daemon=True).start()
-        self.send_json(200, {'ok': True, 'message': f'Republicacao de "{title[:50]}" iniciada'})
+        self.send_json(200, {'ok': True, 'message': f'Clip "{title[:50]}" devolvido para a fila', 'cleared': cleared})
 
     def handle_clip_dismiss_erro(self, data):
         """Remove erro_upload entries so clip becomes pendente again."""

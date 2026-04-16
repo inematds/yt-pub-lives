@@ -887,24 +887,42 @@ def process_publicacao(config):
     finally:
         _pub_lock.release()
 
+_tiktok_pub_lock = threading.Lock()
+
 def process_publicacao_imports(config):
-    """Publica clips de imports usando a fila propria (import_pub_horarios)."""
+    """Publica clips de imports normais (nao TikTok)."""
     if not _import_pub_lock.acquire(blocking=False):
         log('  Publicacao de imports ja em andamento, pulando')
         return
     try:
-        _process_publicacao_imports_inner(config)
+        privacy = config.get('import_privacy', '') or config.get('privacy_padrao', 'unlisted')
+        max_por_vez = int(config.get('import_pub_max_por_vez', '1') or '1')
+        all_imports = [l for l in get_pending_lives() if l.get('video_id', '').startswith('import_')]
+        lives = [l for l in all_imports if not (l.get('titulo', '') or '').startswith('TikTok @')]
+        _publish_import_list('import', lives, max_por_vez, privacy, config)
     finally:
         _import_pub_lock.release()
 
-def _process_publicacao_imports_inner(config):
-    privacy = config.get('privacy_padrao', 'unlisted')
-    max_por_vez = int(config.get('pub_max_por_vez', '2') or '2')
-    log(f'  [imports] Buscando imports para publicar (privacy={privacy}, max={max_por_vez})...')
-    lives = [l for l in get_pending_lives() if l.get('video_id', '').startswith('import_')]
+def process_publicacao_tiktok(config):
+    """Publica clips de TikTok."""
+    if not _tiktok_pub_lock.acquire(blocking=False):
+        log('  Publicacao de TikTok ja em andamento, pulando')
+        return
+    try:
+        privacy = config.get('tiktok_privacy', '') or config.get('privacy_padrao', 'unlisted')
+        max_por_vez = int(config.get('tiktok_pub_max_por_vez', '1') or '1')
+        all_imports = [l for l in get_pending_lives() if l.get('video_id', '').startswith('import_')]
+        lives = [l for l in all_imports if (l.get('titulo', '') or '').startswith('TikTok @')]
+        _publish_import_list('tiktok', lives, max_por_vez, privacy, config)
+    finally:
+        _tiktok_pub_lock.release()
 
+def _publish_import_list(label, lives, max_por_vez, privacy, config):
     found_any = False
+    global_count = 0
     for live in lives:
+        if global_count >= max_por_vez:
+            break
         vid = live.get('video_id', '')
         qtd_clips = int(live.get('qtd_clips', '0') or '0')
         publicados_count = int(live.get('clips_publicados', '0') or '0')
@@ -914,7 +932,6 @@ def _process_publicacao_imports_inner(config):
         if publicados_count >= qtd_clips or qtd_clips == 0:
             continue
 
-        # Respeita publish_at do manifest se definido
         obs = live.get('observacoes', '')
         import re as _re
         pa_match = _re.search(r'publish_at=(\d{2}:\d{2})', obs)
@@ -922,11 +939,11 @@ def _process_publicacao_imports_inner(config):
             publish_at = pa_match.group(1)
             now_hm = datetime.now().strftime('%H:%M')
             if now_hm < publish_at:
-                log(f'  Import {vid}: aguardando publish_at={publish_at} (agora={now_hm}), pulando')
+                log(f'  [{label}] {vid}: aguardando publish_at={publish_at} (agora={now_hm}), pulando')
                 continue
 
         found_any = True
-        log(f'  [import] {vid}: {qtd_clips} clips, {publicados_count} publicados')
+        log(f'  [{label}] {vid}: {qtd_clips} clips, {publicados_count} publicados')
 
         job_dir = os.path.join(LIVES_DIR, vid)
         manifest_file = os.path.join(job_dir, 'clips_manifest.json')
@@ -937,26 +954,27 @@ def _process_publicacao_imports_inner(config):
         with open(manifest_file) as f:
             clips = json.load(f)
 
-        from collections import Counter
         pub_records = db.get_publicados(live_video_id=vid)
-        published_counts = Counter()
-        erro_counts = Counter()
+        published_ids = set()
+        pub_ok = 0
+        pub_erro = 0
         for p in pub_records:
             vid_status = p.get('clip_video_id', '')
-            titulo = p.get('clip_titulo', '')
+            cid = p.get('filename', '')
             if vid_status in ('erro_upload', 'publicando', ''):
-                erro_counts[titulo] += 1
+                pub_erro += 1
             else:
-                published_counts[titulo] += 1
-        known_counts = published_counts + erro_counts
+                pub_ok += 1
+            if cid:
+                published_ids.add(cid)
 
         count = 0
-        manifest_seen = Counter()
         for clip in clips:
-            if count >= max_por_vez:
+            if global_count >= max_por_vez:
                 break
-            manifest_seen[clip['title']] += 1
-            if manifest_seen[clip['title']] <= known_counts.get(clip['title'], 0):
+
+            clip_id = f'{vid}_{clip.get("index", 0)}'
+            if clip_id in published_ids:
                 continue
             if clip.get('paused', False):
                 continue
@@ -965,9 +983,6 @@ def _process_publicacao_imports_inner(config):
                 continue
 
             clip_title = clip['title']
-            # Add number suffix for duplicate titles
-            if published_counts[clip_title] > 0 or manifest_seen[clip_title] > 1:
-                clip_title = f'{clip_title} #{manifest_seen[clip_title]}'
             clip_desc = clip.get('description', '') or clip.get('title', '')
             clip_privacy = clip.get('privacy', privacy)
 
@@ -982,16 +997,17 @@ def _process_publicacao_imports_inner(config):
                 'privacy': clip_privacy,
                 'duracao': str(clip.get('duration', '')),
                 'tags': ','.join(clip.get('tags', [])) if isinstance(clip.get('tags'), list) else clip.get('tags', ''),
-                'categoria': '27'
+                'categoria': '27',
+                'filename': clip_id
             })
 
-            update_status('publicando', f'[import] Enviando: {clip_title[:50]}', vid, step='upload', clip_title=clip_title[:50])
+            update_status('publicando', f'[{label}] Enviando: {clip_title[:50]}', vid, step='upload', clip_title=clip_title[:50])
             new_vid = run_publicacao(vid, clip['file'], clip_title, clip_desc,
                                      ','.join(clip.get('tags', [])) if isinstance(clip.get('tags'), list) else clip.get('tags', ''),
                                      clip_privacy)
 
             if new_vid:
-                update_status('publicando', f'[import] Thumbnail...', vid, step='thumbnail', clip_id=new_vid)
+                update_status('publicando', f'[{label}] Thumbnail...', vid, step='thumbnail', clip_id=new_vid)
                 handle_thumbnail(new_vid, clip_title, clip_desc, config)
                 db.update_publicado(lock_row_id,
                     clip_video_id=new_vid,
@@ -999,19 +1015,24 @@ def _process_publicacao_imports_inner(config):
                     clip_url=f'https://www.youtube.com/watch?v={new_vid}'
                 )
                 count += 1
-                published_counts[clip['title']] += 1
-                log(f'  [import] Publicado: {clip_title[:50]} -> {new_vid}')
+                global_count += 1
+                pub_ok += 1
+                published_ids.add(clip_id)
+                log(f'  [{label}] Publicado: {clip_title[:50]} -> {new_vid}')
             else:
                 db.update_publicado(lock_row_id, clip_video_id='erro_upload')
                 count += 1
-                log(f'  [import] Falha: {clip_title[:50]}')
+                global_count += 1
+                pub_erro += 1
+                published_ids.add(clip_id)
+                log(f'  [{label}] Falha: {clip_title[:50]}')
 
-        actual_published = sum(published_counts.values())
-        if actual_published != publicados_count:
-            update_live_status(vid, 'clips_publicados', str(actual_published))
+        if pub_ok != publicados_count:
+            pend = max(0, qtd_clips - pub_ok)
+            update_live_status(vid, 'clips_publicados', str(pub_ok), {'clips_pendentes': str(pend)})
 
     if not found_any:
-        log('  [imports] Nenhum import pendente para publicar')
+        log(f'  [{label}] Nenhum pendente para publicar')
 
 def _process_publicacao_inner(config):
     privacy = config.get('privacy_padrao', 'unlisted')
@@ -1050,30 +1071,33 @@ def _process_publicacao_inner(config):
         with open(manifest_file) as f:
             clips = json.load(f)
 
-        # Check which clips are already in the DB (count duplicates)
-        from collections import Counter
+        # Build set of clip_ids already in the DB (by filename field)
         pub_records = db.get_publicados(live_video_id=vid)
-        published_counts = Counter()
-        erro_counts = Counter()
+        published_ids = set()
+        pub_ok = 0
+        pub_erro = 0
         for p in pub_records:
             vid_status = p.get('clip_video_id', '')
-            titulo = p.get('clip_titulo', '')
+            cid = p.get('filename', '')
             if vid_status in ('erro_upload', 'publicando', ''):
-                erro_counts[titulo] += 1
+                pub_erro += 1
             else:
-                published_counts[titulo] += 1
-        known_counts = published_counts + erro_counts
+                pub_ok += 1
+            if cid:
+                published_ids.add(cid)
 
         count = 0
-        manifest_seen = Counter()
-        log(f'  {len(clips)} clips no manifest, {sum(published_counts.values())} publicados OK, {sum(erro_counts.values())} com erro')
+        log(f'  {len(clips)} clips no manifest, {pub_ok} publicados OK, {pub_erro} com erro')
         for clip in clips:
             if count >= max_por_vez:
                 log(f'  Limite de {max_por_vez} clips por vez atingido')
                 break
 
-            manifest_seen[clip['title']] += 1
-            if manifest_seen[clip['title']] <= known_counts.get(clip['title'], 0):
+            # Unique clip_id: live_video_id + index
+            clip_id = f'{vid}_{clip.get("index", 0)}'
+
+            # Skip if already published or in error
+            if clip_id in published_ids:
                 continue
 
             if clip.get('paused', False):
@@ -1085,9 +1109,6 @@ def _process_publicacao_inner(config):
                 continue
 
             clip_title = clip['title']
-            # Add number suffix for duplicate titles
-            if published_counts[clip_title] > 0 or manifest_seen[clip_title] > 1:
-                clip_title = f'{clip_title} #{manifest_seen[clip_title]}'
             clip_desc = clip.get('description', '') or clip.get('title', '')
 
             # Lock no banco: marcar como "publicando" ANTES de iniciar
@@ -1102,9 +1123,10 @@ def _process_publicacao_inner(config):
                 'privacy': privacy,
                 'duracao': str(clip.get('duration', '')),
                 'tags': ','.join(clip.get('tags', [])),
-                'categoria': '27'
+                'categoria': '27',
+                'filename': clip_id
             })
-            log(f'  Reservado no banco: {clip_title[:50]}')
+            log(f'  Reservado no banco: {clip_title[:50]} (id: {clip_id})')
 
             # Refinar titulo e descricao com IA
             update_status('publicando', f'Refinando com IA: {clip_title[:50]}', vid, step='refine', clip_title=clip_title[:50])
@@ -1122,14 +1144,12 @@ def _process_publicacao_inner(config):
             )
 
             if new_vid:
-                # Generate and upload thumbnail
                 update_status('publicando', f'Gerando thumbnail...', vid, step='thumbnail', clip_id=new_vid, clip_title=clip_title[:50])
                 handle_thumbnail(
                     new_vid, clip_title,
                     clip.get('description', ''), config
                 )
 
-                # Atualizar no banco: "publicando" -> video_id real
                 db.update_publicado(lock_row_id,
                     clip_video_id=new_vid,
                     clip_titulo=clip_title,
@@ -1137,19 +1157,21 @@ def _process_publicacao_inner(config):
                 )
 
                 count += 1
-                published_counts[clip['title']] += 1
+                pub_ok += 1
+                published_ids.add(clip_id)
                 log(f'  Publicado: {clip_title[:50]} -> {new_vid}')
             else:
-                # Upload falhou: marcar como erro
                 db.update_publicado(lock_row_id, clip_video_id='erro_upload')
                 count += 1
+                pub_erro += 1
+                published_ids.add(clip_id)
                 log(f'  Falha ao publicar: {clip_title[:50]}')
 
-        # Update counter if clips were published OR if counter is out of sync
-        actual_published = sum(published_counts.values())
-        new_total = actual_published
+        # Update counter
+        new_total = pub_ok
         if new_total != publicados_count:
-            update_live_status(vid, 'clips_publicados', str(new_total))
+            pend = max(0, qtd_clips - new_total)
+            update_live_status(vid, 'clips_publicados', str(new_total), {'clips_pendentes': str(pend)})
             log(f'  Atualizado clips_publicados: {publicados_count} -> {new_total} para {vid}')
 
         if count > 0:
@@ -1243,6 +1265,20 @@ def main():
             if not import_pub_match and last_executed.get('import_pub'):
                 last_executed['import_pub'] = None
 
+            # --- Publicacao de TikTok (fila propria via tiktok_pub_horarios) ---
+            tiktok_pub_horarios = config.get('tiktok_pub_horarios', '')
+            tiktok_pub_paused = config.get('pipeline_tiktok_paused', 'false') == 'true'
+            tiktok_pub_match = get_matching_schedule(tiktok_pub_horarios) if tiktok_pub_horarios else None
+
+            if not tiktok_pub_paused and tiktok_pub_match:
+                if last_executed.get('tiktok_pub') != tiktok_pub_match:
+                    last_executed['tiktok_pub'] = tiktok_pub_match
+                    log(f'==> Hora de publicar TikTok! (agendado: {tiktok_pub_match})')
+                    process_publicacao_tiktok(config)
+
+            if not tiktok_pub_match and last_executed.get('tiktok_pub'):
+                last_executed['tiktok_pub'] = None
+
             # --- Enrich lives (titulo generico INEMA → titulo + desc + thumb) ---
             enrich_paused = config.get('pipeline_enrich_paused', 'false') == 'true'
             enrich_auto = config.get('enrich_auto', 'false') == 'true'
@@ -1303,8 +1339,16 @@ def main():
                     last_executed['sync'] = '00:00'
                     log('==> Auto-sync: sincronizando lives do canal de origem...')
                     update_status('sincronizando', 'Auto-sync em andamento...')
-                    dashboard_port = config.get('dashboard_port', '8091')
-                    payload = json.dumps({'mode': 'novas', 'max_lives': 1000}).encode()
+                    # Derive dashboard port from INSTANCE_NAME (yt-pub-livesN -> 8090+N)
+                    instance_name = os.environ.get('INSTANCE_NAME', '')
+                    _inst_num = ''.join(c for c in instance_name if c.isdigit())
+                    dashboard_port = str(8090 + int(_inst_num)) if _inst_num else config.get('dashboard_port', '8091')
+                    sync_payload = {'mode': 'novas', 'max_lives': 1000}
+                    sync_date_from = config.get('sync_auto_date_from', '').strip()
+                    if sync_date_from:
+                        sync_payload['date_from'] = sync_date_from
+                        log(f'  Auto-sync com filtro date_from={sync_date_from}')
+                    payload = json.dumps(sync_payload).encode()
                     sync_ok = False
                     for attempt in range(1, 4):
                         try:
